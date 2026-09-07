@@ -8,7 +8,10 @@ TESTRIG_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(dirname "$TESTRIG_DIR")
 
 LIBVIRT_URI=qemu:///system
-VM_NAME=paruguard-testrig
+# VM name / rig slug are env-overridable so a run can target an existing rig VM
+# built under a different name (e.g. after a project rename) without a rebuild.
+VM_NAME="${PARUGUARD_TESTRIG_VM:-paruguard-testrig}"
+RIG_SLUG="${PARUGUARD_TESTRIG_SLUG:-paruguard-testrig}"
 SNAPSHOT_NAME=provisioned
 
 # --- disk-backed state ------------------------------------------------------
@@ -19,14 +22,14 @@ SNAPSHOT_NAME=provisioned
 # $HOME: a home directory is typically 0700, which the libvirt-qemu user
 # can't even traverse, so qemu fails to open any disk placed there
 # ("Permission denied" at VM start). See testrig/README.md for the reasoning.
-VM_IMAGE_DIR=/var/lib/libvirt/images/paruguard-testrig
+VM_IMAGE_DIR="/var/lib/libvirt/images/$RIG_SLUG"
 BASE_IMAGE_CACHE="$VM_IMAGE_DIR/arch-cloudimg-base.qcow2"
 VM_DISK="$VM_IMAGE_DIR/$VM_NAME.qcow2"
 SEED_ISO="$VM_IMAGE_DIR/seed.iso"
 
 # --- host-only state (never touched by the qemu process) -------------------
 # Ordinary $HOME permissions are fine here.
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/paruguard-testrig"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$RIG_SLUG"
 SSH_DIR="$STATE_DIR/ssh"
 SSH_KEY="$SSH_DIR/id_ed25519"
 KNOWN_HOSTS="$STATE_DIR/known_hosts"
