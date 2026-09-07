@@ -6,7 +6,6 @@ work/
 *.log
 
 # makepkg build dirs (from building the PKGBUILD in-tree)
-/paruz/
 /pkg/
 /src/
 /paruguard/
