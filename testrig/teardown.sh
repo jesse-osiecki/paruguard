@@ -3,7 +3,7 @@
 #
 # testrig/teardown.sh — best-effort, confirmed removal of everything the
 # rig created: the libvirt domain, its disk(s), the cached base image, and
-# host-side rig state (ssh keys, logs). Mirrors bin/paruz-setup --uninstall's
+# host-side rig state (ssh keys, logs). Mirrors bin/paruguard-setup --uninstall's
 # style: destructive, prompts per step unless --yes.
 #
 # Deliberately does NOT touch: the libvirt 'default' network or libvirtd
@@ -77,4 +77,4 @@ if [[ -d "$STATE_DIR" ]]; then
 	fi
 fi
 
-ok "teardown steps complete (skipped steps left untouched) — the host's own paruz install/config was never touched"
+ok "teardown steps complete (skipped steps left untouched) — the host's own paruguard install/config was never touched"

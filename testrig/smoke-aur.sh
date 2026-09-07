@@ -5,18 +5,18 @@
 # the disposable VM. Unlike tests/run.sh (which uses trivial local fixtures),
 # this drives the actual user workflow against the live AUR:
 #
-#   phase 1  paruz -S <pkg>     fetch -> gate -> net-off build -> split install
-#   phase 2  paruz -S <pkg>     re-run: exercises the §6.6 approved-commit
+#   phase 1  paruguard -S <pkg>     fetch -> gate -> net-off build -> split install
+#   phase 2  paruguard -S <pkg>     re-run: exercises the §6.6 approved-commit
 #                                snapshot / "no upstream changes" gate path
-#   phase 3  paruz -Sua         AUR upgrade dispatch (paru -Qua detection)
+#   phase 3  paruguard -Sua         AUR upgrade dispatch (paru -Qua detection)
 #
 # It asserts real outcomes (pacman -Qi succeeds, the built package landed in
 # the local repo), not just exit codes.
 #
-# >>> IMPORTANT: this AUTO-APPROVES paruz's human review gate. <<<
-# paruz's whole point is that a human reads every PKGBUILD/.install/maintainer
+# >>> IMPORTANT: this AUTO-APPROVES paruguard's human review gate. <<<
+# paruguard's whole point is that a human reads every PKGBUILD/.install/maintainer
 # change before building. This script answers "yes" to those prompts (over an
-# SSH pseudo-tty, since paruz's confirm() fails closed on a non-tty) so the
+# SSH pseudo-tty, since paruguard's confirm() fails closed on a non-tty) so the
 # pipeline can be validated unattended against a KNOWN-GOOD package. That is a
 # deliberate, scoped exception for VM validation — never a mode real usage
 # should run in.
@@ -44,7 +44,7 @@ Usage: smoke-aur.sh [--pkg NAME] [--yes] [--keep-disk]
                 success
   --keep-disk   leave the VM running at the end even on success (for poking)
 
-Auto-approves paruz's review gate — validation of a known package only.
+Auto-approves paruguard's review gate — validation of a known package only.
 EOF
 }
 
@@ -94,21 +94,21 @@ log "syncing current working tree into the guest ($GUEST_REPO_DIR)"
 rsync_to_guest "$ip" "$REPO_ROOT" "$GUEST_REPO_DIR"
 
 warn "================================================================"
-warn "AUTO-APPROVING paruz's human review gate for '$PKG' (VM validation"
+warn "AUTO-APPROVING paruguard's human review gate for '$PKG' (VM validation"
 warn "of a known package only — real usage must review these by hand)."
 warn "================================================================"
 
-# paruz_in_guest ARGS LOGFILE — run ./bin/paruz with the given args in the
+# paruguard_in_guest ARGS LOGFILE — run ./bin/paruguard with the given args in the
 # guest over an SSH pty, feeding 'y' to any tty-gated confirm() prompt. Tees
-# to LOGFILE and returns paruz's exit code. $PARUZ_EXTRA_FLAGS (host env) is
-# prepended to the paruz args — use it to pre-approve non-gate prompts (e.g.
+# to LOGFILE and returns paruguard's exit code. $PARUGUARD_EXTRA_FLAGS (host env) is
+# prepended to the paruguard args — use it to pre-approve non-gate prompts (e.g.
 # --allow-build-net) so a run needs only the single gate 'y'; the pre-fed
 # pty input is not reliable across multiple prompts separated by long work.
-paruz_in_guest() {
+paruguard_in_guest() {
 	local args="$1" logfile="$2" rc=0
 	printf 'y\ny\ny\ny\ny\n' \
 		| ssh -tt "${SSH_OPTS[@]}" "$GUEST_USER@$ip" \
-			"cd '$GUEST_REPO_DIR' && ./bin/paruz ${PARUZ_EXTRA_FLAGS:-} $args" 2>&1 \
+			"cd '$GUEST_REPO_DIR' && ./bin/paruguard ${PARUGUARD_EXTRA_FLAGS:-} $args" 2>&1 \
 		| tee "$logfile" \
 		|| rc=$?
 	return "$rc"
@@ -121,16 +121,16 @@ fail() { err "FAIL  $*"; FAILED=1; }
 # --- phase 1: real install --------------------------------------------------
 
 echo
-log "=== phase 1: paruz -S $PKG (real fetch/gate/build/install) ==="
+log "=== phase 1: paruguard -S $PKG (real fetch/gate/build/install) ==="
 rc=0
-paruz_in_guest "-S $PKG" "$RUN_LOG_DIR/install.log" || rc=$?
+paruguard_in_guest "-S $PKG" "$RUN_LOG_DIR/install.log" || rc=$?
 if (( rc != 0 )); then
-	fail "phase 1: paruz -S $PKG exited $rc (see $RUN_LOG_DIR/install.log)"
+	fail "phase 1: paruguard -S $PKG exited $rc (see $RUN_LOG_DIR/install.log)"
 else
 	if ssh_guest "$ip" "pacman -Qi '$PKG'" >/dev/null 2>&1; then
 		pass "phase 1: $PKG is installed (pacman -Qi succeeds)"
 	else
-		fail "phase 1: paruz exited 0 but $PKG is NOT in the pacman DB"
+		fail "phase 1: paruguard exited 0 but $PKG is NOT in the pacman DB"
 	fi
 	if ssh_guest "$ip" "ls /var/lib/repo/aur/${PKG}-*.pkg.tar.zst" >/dev/null 2>&1; then
 		pass "phase 1: built package landed in the local [aur] repo"
@@ -150,9 +150,9 @@ fi
 # --- phase 2: re-run exercises the approved-commit / no-change gate ----------
 
 echo
-log "=== phase 2: paruz -S $PKG again (approved-commit snapshot / no-change gate) ==="
+log "=== phase 2: paruguard -S $PKG again (approved-commit snapshot / no-change gate) ==="
 rc=0
-paruz_in_guest "-S $PKG" "$RUN_LOG_DIR/reinstall.log" || rc=$?
+paruguard_in_guest "-S $PKG" "$RUN_LOG_DIR/reinstall.log" || rc=$?
 if (( rc != 0 )); then
 	fail "phase 2: re-run exited $rc (see $RUN_LOG_DIR/reinstall.log)"
 elif grep -qiE 'no upstream changes|no PKGBUILD/.install|no .* changes' "$RUN_LOG_DIR/reinstall.log"; then
@@ -164,11 +164,11 @@ fi
 # --- phase 3: AUR upgrade dispatch ------------------------------------------
 
 echo
-log "=== phase 3: paruz -Sua (AUR upgrade dispatch) ==="
+log "=== phase 3: paruguard -Sua (AUR upgrade dispatch) ==="
 rc=0
-paruz_in_guest "-Sua" "$RUN_LOG_DIR/upgrade.log" || rc=$?
+paruguard_in_guest "-Sua" "$RUN_LOG_DIR/upgrade.log" || rc=$?
 if (( rc != 0 )); then
-	fail "phase 3: paruz -Sua exited $rc (see $RUN_LOG_DIR/upgrade.log)"
+	fail "phase 3: paruguard -Sua exited $rc (see $RUN_LOG_DIR/upgrade.log)"
 else
 	pass "phase 3: AUR upgrade path dispatched cleanly (exit 0)"
 fi

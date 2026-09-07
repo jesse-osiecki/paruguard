@@ -1,25 +1,25 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# paruz — build/install/test targets.
+# paruguard — build/install/test targets.
 #
-# paruz is pure Bash, so "build" means "validate" (syntax + optional lint),
+# paruguard is pure Bash, so "build" means "validate" (syntax + optional lint),
 # not compile. Install layout is PREFIX-relative and DESTDIR-aware so it works
 # both for `sudo make install` and inside a PKGBUILD's package() step.
 
 PREFIX      ?= /usr
 BINDIR      ?= $(PREFIX)/bin
-LIBDIR      ?= $(PREFIX)/lib/paruz/lib
-SHAREDIR    ?= $(PREFIX)/share/paruz
-SYSCONFDIR  ?= /etc/paruz
+LIBDIR      ?= $(PREFIX)/lib/paruguard/lib
+SHAREDIR    ?= $(PREFIX)/share/paruguard
+SYSCONFDIR  ?= /etc/paruguard
 BASHCOMPDIR ?= $(PREFIX)/share/bash-completion/completions
 ZSHCOMPDIR  ?= $(PREFIX)/share/zsh/site-functions
-LICENSEDIR  ?= $(PREFIX)/share/licenses/paruz
-DOCDIR      ?= $(PREFIX)/share/doc/paruz
+LICENSEDIR  ?= $(PREFIX)/share/licenses/paruguard
+DOCDIR      ?= $(PREFIX)/share/doc/paruguard
 
 INSTALL         := install
 INSTALL_PROGRAM := $(INSTALL) -Dm755
 INSTALL_DATA    := $(INSTALL) -Dm644
 
-BIN_SCRIPTS  := bin/paruz bin/paruz-setup
+BIN_SCRIPTS  := bin/paruguard bin/paruguard-setup
 LIB_SCRIPTS  := $(wildcard lib/*.sh)
 
 .PHONY: all build check test lint install uninstall clean help
@@ -56,31 +56,31 @@ check: test
 ## install: place all files under $(DESTDIR)$(PREFIX) (DESTDIR-aware for packaging)
 install:
 	@echo "==> installing to $(DESTDIR)$(PREFIX)"
-	$(INSTALL_PROGRAM) bin/paruz        $(DESTDIR)$(BINDIR)/paruz
-	$(INSTALL_PROGRAM) bin/paruz-setup  $(DESTDIR)$(BINDIR)/paruz-setup
+	$(INSTALL_PROGRAM) bin/paruguard        $(DESTDIR)$(BINDIR)/paruguard
+	$(INSTALL_PROGRAM) bin/paruguard-setup  $(DESTDIR)$(BINDIR)/paruguard-setup
 	@for f in $(LIB_SCRIPTS); do \
 		echo "    $(INSTALL_DATA) $$f -> $(DESTDIR)$(LIBDIR)/$$(basename $$f)"; \
 		$(INSTALL_DATA) "$$f" "$(DESTDIR)$(LIBDIR)/$$(basename $$f)"; \
 	done
 	$(INSTALL_DATA) share/known-bad-packages.txt $(DESTDIR)$(SHAREDIR)/known-bad-packages.txt
-	$(INSTALL_DATA) etc/paruz.conf      $(DESTDIR)$(SYSCONFDIR)/paruz.conf
-	$(INSTALL_DATA) completions/paruz.bash $(DESTDIR)$(BASHCOMPDIR)/paruz
-	$(INSTALL_DATA) completions/_paruz  $(DESTDIR)$(ZSHCOMPDIR)/_paruz
+	$(INSTALL_DATA) etc/paruguard.conf      $(DESTDIR)$(SYSCONFDIR)/paruguard.conf
+	$(INSTALL_DATA) completions/paruguard.bash $(DESTDIR)$(BASHCOMPDIR)/paruguard
+	$(INSTALL_DATA) completions/_paruguard  $(DESTDIR)$(ZSHCOMPDIR)/_paruguard
 	$(INSTALL_DATA) LICENSE             $(DESTDIR)$(LICENSEDIR)/LICENSE
 	$(INSTALL_DATA) README.md           $(DESTDIR)$(DOCDIR)/README.md
 	$(INSTALL_DATA) PLAN.md             $(DESTDIR)$(DOCDIR)/PLAN.md
-	@echo "==> installed. Run 'paruz-setup' next to configure the build chroot / local repo / pacman.conf."
+	@echo "==> installed. Run 'paruguard-setup' next to configure the build chroot / local repo / pacman.conf."
 
 ## uninstall: remove installed files (mirror of install; not for pacman-managed installs)
 uninstall:
 	@echo "==> removing installed files from $(DESTDIR)$(PREFIX)"
-	rm -f  $(DESTDIR)$(BINDIR)/paruz $(DESTDIR)$(BINDIR)/paruz-setup
-	rm -rf $(DESTDIR)$(PREFIX)/lib/paruz
+	rm -f  $(DESTDIR)$(BINDIR)/paruguard $(DESTDIR)$(BINDIR)/paruguard-setup
+	rm -rf $(DESTDIR)$(PREFIX)/lib/paruguard
 	rm -rf $(DESTDIR)$(SHAREDIR)
-	rm -f  $(DESTDIR)$(BASHCOMPDIR)/paruz $(DESTDIR)$(ZSHCOMPDIR)/_paruz
+	rm -f  $(DESTDIR)$(BASHCOMPDIR)/paruguard $(DESTDIR)$(ZSHCOMPDIR)/_paruguard
 	rm -rf $(DESTDIR)$(LICENSEDIR) $(DESTDIR)$(DOCDIR)
-	@echo "note: $(SYSCONFDIR)/paruz.conf left in place (may hold local edits); remove by hand if desired."
-	@echo "note: this does NOT undo 'paruz-setup' system state — run 'paruz-setup --uninstall' for that."
+	@echo "note: $(SYSCONFDIR)/paruguard.conf left in place (may hold local edits); remove by hand if desired."
+	@echo "note: this does NOT undo 'paruguard-setup' system state — run 'paruguard-setup --uninstall' for that."
 
 ## clean: nothing to clean (no build artifacts), present for convention
 clean:

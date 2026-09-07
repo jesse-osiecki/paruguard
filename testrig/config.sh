@@ -1,32 +1,32 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # shellcheck shell=bash
 #
-# testrig/config.sh — shared configuration for the paruz disposable test rig.
+# testrig/config.sh — shared configuration for the paruguard disposable test rig.
 # Sourced by every testrig/*.sh script. Not meant to be run directly.
 
 TESTRIG_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(dirname "$TESTRIG_DIR")
 
 LIBVIRT_URI=qemu:///system
-VM_NAME=paruz-testrig
+VM_NAME=paruguard-testrig
 SNAPSHOT_NAME=provisioned
 
 # --- disk-backed state ------------------------------------------------------
 # Everything the qemu process itself must read/write (disk images, the
-# cloud-init seed ISO) lives under /var/lib/libvirt/images/paruz-testrig, a
+# cloud-init seed ISO) lives under /var/lib/libvirt/images/paruguard-testrig, a
 # libvirt-qemu-traversable directory that host-setup.sh creates once
 # (group `libvirt`, setgid, 2775). It deliberately does NOT live under
 # $HOME: a home directory is typically 0700, which the libvirt-qemu user
 # can't even traverse, so qemu fails to open any disk placed there
 # ("Permission denied" at VM start). See testrig/README.md for the reasoning.
-VM_IMAGE_DIR=/var/lib/libvirt/images/paruz-testrig
+VM_IMAGE_DIR=/var/lib/libvirt/images/paruguard-testrig
 BASE_IMAGE_CACHE="$VM_IMAGE_DIR/arch-cloudimg-base.qcow2"
 VM_DISK="$VM_IMAGE_DIR/$VM_NAME.qcow2"
 SEED_ISO="$VM_IMAGE_DIR/seed.iso"
 
 # --- host-only state (never touched by the qemu process) -------------------
 # Ordinary $HOME permissions are fine here.
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/paruz-testrig"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/paruguard-testrig"
 SSH_DIR="$STATE_DIR/ssh"
 SSH_KEY="$SSH_DIR/id_ed25519"
 KNOWN_HOSTS="$STATE_DIR/known_hosts"
@@ -50,13 +50,13 @@ OS_VARIANT=archlinux
 # is prone to being SIGKILL'd by the guest OOM killer partway
 # through the final `src/main.rs` link — rustc's RSS climbs past 3GB and
 # guest swap (a fixed ~512M on the cloud image) doesn't cover the gap.
-# Bump via PARUZ_TESTRIG_MEMORY_MB if your host has room for even more.
-VM_MEMORY_MB="${PARUZ_TESTRIG_MEMORY_MB:-8192}"
-VM_VCPUS="${PARUZ_TESTRIG_VCPUS:-4}"
-VM_DISK_SIZE_GB="${PARUZ_TESTRIG_DISK_GB:-20}"
+# Bump via PARUGUARD_TESTRIG_MEMORY_MB if your host has room for even more.
+VM_MEMORY_MB="${PARUGUARD_TESTRIG_MEMORY_MB:-8192}"
+VM_VCPUS="${PARUGUARD_TESTRIG_VCPUS:-4}"
+VM_DISK_SIZE_GB="${PARUGUARD_TESTRIG_DISK_GB:-20}"
 
 GUEST_USER=arch
-GUEST_REPO_DIR="/home/$GUEST_USER/paruz"
+GUEST_REPO_DIR="/home/$GUEST_USER/paruguard"
 
 # --- ssh -----------------------------------------------------------------
 SSH_OPTS=(

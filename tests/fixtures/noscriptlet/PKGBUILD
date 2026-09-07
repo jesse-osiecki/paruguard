@@ -1,13 +1,13 @@
 # Test fixture for PLAN.md §11 test 5 — --noscriptlet proven (I4).
-# post_install writes a marker file; after `paruz -S`, it must NOT exist.
-pkgname=paruz-test-noscriptlet
+# post_install writes a marker file; after `paruguard -S`, it must NOT exist.
+pkgname=paruguard-test-noscriptlet
 pkgver=1.0
 pkgrel=1
-pkgdesc="paruz test fixture: post_install marker that must never run"
+pkgdesc="paruguard test fixture: post_install marker that must never run"
 arch=('any')
 url="https://example.invalid"
 license=('MIT')
-install=paruz-test-noscriptlet.install
+install=paruguard-test-noscriptlet.install
 
 package() {
 	mkdir -p "$pkgdir/usr/share/$pkgname"

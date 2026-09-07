@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# testrig/console.sh — get a shell in the (running) paruz-testrig VM, for
+# testrig/console.sh — get a shell in the (running) paruguard-testrig VM, for
 # debugging a failed live-tier test. Defaults to SSH (reliable, scrollback,
 # copy-paste); pass --serial to attach to the VM's serial console instead
 # (useful if networking itself is broken, e.g. debugging an I2 network-off

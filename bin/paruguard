@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# paruz — zero-trust AUR installer. Hardened wrapper around stock paru/pacman.
+# paruguard — zero-trust AUR installer. Hardened wrapper around stock paru/pacman.
 # See PLAN.md for the full design; this file is the entrypoint: arg parsing,
 # passthrough detection, and orchestration of lib/*.sh (PLAN.md §4-§5).
 set -euo pipefail
@@ -11,18 +11,18 @@ SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 
 resolve_lib_dir() {
 	# Candidate order: explicit override; repo layout (bin/ and lib/ are
-	# siblings); PREFIX-relative installed layout (e.g. /usr/bin/paruz ->
-	# /usr/lib/paruz/lib, works for any --prefix); and the two absolute
+	# siblings); PREFIX-relative installed layout (e.g. /usr/bin/paruguard ->
+	# /usr/lib/paruguard/lib, works for any --prefix); and the two absolute
 	# fallbacks the Makefile installs to by default.
 	local c
-	for c in "${PARUZ_LIB_DIR:-}" \
+	for c in "${PARUGUARD_LIB_DIR:-}" \
 		"$SCRIPT_DIR/../lib" \
-		"$SCRIPT_DIR/../lib/paruz/lib" \
-		/usr/lib/paruz/lib \
-		/usr/share/paruz/lib; do
+		"$SCRIPT_DIR/../lib/paruguard/lib" \
+		/usr/lib/paruguard/lib \
+		/usr/share/paruguard/lib; do
 		[[ -n "$c" && -f "$c/common.sh" ]] && { printf '%s\n' "$c"; return 0; }
 	done
-	echo "paruz: cannot locate lib/common.sh (checked \$PARUZ_LIB_DIR, $SCRIPT_DIR/../lib, $SCRIPT_DIR/../lib/paruz/lib, /usr/lib/paruz/lib, /usr/share/paruz/lib)" >&2
+	echo "paruguard: cannot locate lib/common.sh (checked \$PARUGUARD_LIB_DIR, $SCRIPT_DIR/../lib, $SCRIPT_DIR/../lib/paruguard/lib, /usr/lib/paruguard/lib, /usr/share/paruguard/lib)" >&2
 	exit 1
 }
 LIB_DIR=$(resolve_lib_dir)
@@ -44,20 +44,20 @@ DRY_RUN=0
 
 usage() {
 	cat <<'EOF'
-paruz — zero-trust AUR installer (hardened wrapper around paru/pacman)
+paruguard — zero-trust AUR installer (hardened wrapper around paru/pacman)
 
 Usage:
-  paruz -S <pkg...>        Hardened AUR install (official-repo targets pass through)
-  paruz [-Syu|-Su|(bare)]  Hardened full upgrade: repo -> AUR -> flatpak
-  paruz -Sua               Hardened AUR-only upgrade
-  paruz doctor              Verify environment (PLAN.md §3, §9.2)
-  paruz <anything else>     Passed straight through to `paru` unchanged
+  paruguard -S <pkg...>        Hardened AUR install (official-repo targets pass through)
+  paruguard [-Syu|-Su|(bare)]  Hardened full upgrade: repo -> AUR -> flatpak
+  paruguard -Sua               Hardened AUR-only upgrade
+  paruguard doctor              Verify environment (PLAN.md §3, §9.2)
+  paruguard <anything else>     Passed straight through to `paru` unchanged
 
 Only the canonical forms above are recognized for hardening; anything else
 (including uncommon pacman flag combinations) passes straight through to
 stock paru with no gating. See PLAN.md §4.
 
-paruz-specific flags (stripped before delegating passthrough ops):
+paruguard-specific flags (stripped before delegating passthrough ops):
   --fail-on <level>            aur-scan gate threshold (default: critical)
   --allow-maintainer-change    permit a maintainer change for this run
   --allow-scan-findings        pre-approve aur-scan findings at/above --fail-on
@@ -77,7 +77,7 @@ paruz-specific flags (stripped before delegating passthrough ops):
   -h, --help                   this help
   --version                    print version
 
-paruz never calls a shell function named paru/pacman — it always uses
+paruguard never calls a shell function named paru/pacman — it always uses
 `command paru` / absolute pacman, so it is unaffected by any zsh paru()
 wrapper and never re-triggers ks-aur-scanner's non-gating shell integration.
 EOF
@@ -96,7 +96,7 @@ cmd_doctor() {
 		fi
 	}
 
-	log "paruz doctor — verifying environment (PLAN.md §3, §9.2)"
+	log "paruguard doctor — verifying environment (PLAN.md §3, §9.2)"
 	check "command paru on PATH"       command -v paru
 	check "pacman on PATH"             command -v pacman
 	check "makechrootpkg on PATH"      command -v makechrootpkg
@@ -126,7 +126,7 @@ cmd_doctor() {
 
 	log "doctor: $ok_count OK, $fail_count missing"
 	if (( fail_count > 0 )); then
-		log "run 'paruz-setup' to fix missing items"
+		log "run 'paruguard-setup' to fix missing items"
 		return 1
 	fi
 	return 0
@@ -158,7 +158,7 @@ while (( $# > 0 )); do
 		--sandbox=*) CLI_SANDBOX="${1#*=}"; shift ;;
 		--dry-run) DRY_RUN=1; shift ;;
 		-h|--help) usage; exit 0 ;;
-		--version) printf 'paruz %s\n' "$VERSION"; exit 0 ;;
+		--version) printf 'paruguard %s\n' "$VERSION"; exit 0 ;;
 		doctor) shift; cmd_doctor "$@"; exit $? ;;
 		*) ARGS+=("$1"); shift ;;
 	esac
@@ -283,7 +283,7 @@ op_install() {
 	local t repo
 	for t in "${targets[@]}"; do
 		# Resolve the target's repo, HANDLING PROVIDES (pacman -Si does not:
-		# e.g. `paruz -S cargo` should install the official `rust`, not try to
+		# e.g. `paruguard -S cargo` should install the official `rust`, not try to
 		# build "cargo" from the AUR). Empty/`aur` => hardened AUR path; any
 		# other repo => install normally via paru. `|| true` keeps the expected
 		# non-zero for AUR/unknown names from tripping set -o pipefail + set -e.

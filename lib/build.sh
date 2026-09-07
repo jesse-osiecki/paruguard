@@ -16,7 +16,7 @@
 #
 # Sets/uses these globals after build_classify_deps: REPO_DEPS, AUR_DEP_NAMES,
 # UNRESOLVED_DEPS. Deliberately globals (not passed by value) — bash array
-# passing is painful and this module is only ever driven by bin/paruz.
+# passing is painful and this module is only ever driven by bin/paruguard.
 
 # build_srcinfo_deps CLONEDIR — union of depends/makedepends/checkdepends
 # (all arch variants) from .SRCINFO, version constraints stripped.
@@ -37,7 +37,7 @@ build_pkgnames() {
 
 # build_needs_build_net CLONEDIR — heuristic: does this package fetch its own
 # dependencies at BUILD time (cargo/go/npm/pip/…)? Such builds can't run under
-# the network-off model (I2); paruz offers a networked (still chroot/secret-
+# the network-off model (I2); paruguard offers a networked (still chroot/secret-
 # isolated) build for them. Heuristic, so it can miss or over-match — it only
 # drives an offer, and --allow-build-net / a declined prompt override it.
 build_needs_build_net() {
@@ -195,7 +195,7 @@ build_provision_repo_deps() {
 # build_ensure_srcpool — the shared source pool must exist and be writable by
 # the invoking user: makepkg writes sources there as that user in BOTH build
 # modes (net-off via build_provision_sources; net-on via makechrootpkg's own
-# download_sources). paruz-setup also sets this up, but a networked build skips
+# download_sources). paruguard-setup also sets this up, but a networked build skips
 # build_provision_sources, so make it certain here for every build.
 build_ensure_srcpool() {
 	local build_user="${SUDO_USER:-$(id -un)}"
@@ -211,7 +211,7 @@ build_provision_sources() {
 	# keyring holds the maintainer keys, like a normal `makepkg`/`paru` build).
 	if ! ( cd "$clonedir" && run env SRCDEST="$AUR_SRCPOOL" makepkg --verifysource --holdver ); then
 		die "source download/verification failed (see above). If it is an unknown PGP key, \
-import it (e.g. 'gpg --recv-keys <keyid>') and re-run — paruz verifies against your keyring, \
+import it (e.g. 'gpg --recv-keys <keyid>') and re-run — paruguard verifies against your keyring, \
 it does not skip the check (I7)."
 	fi
 }
@@ -226,7 +226,7 @@ it does not skip the check (I7)."
 # `-I` — no [aur] repo needs to be configured inside the chroot.
 #
 # makechrootpkg internally passes --skipinteg to the in-chroot build's makepkg
-# (a devtools default, not something paruz adds). In NETMODE=off it is NOT a
+# (a devtools default, not something paruguard adds). In NETMODE=off it is NOT a
 # weakening: sources were already fully verified — checksums AND PGP — on the
 # host in build_provision_sources, and makechrootpkg's own host-side
 # download_sources re-verifies against your keyring before the build; --skipinteg
@@ -289,12 +289,12 @@ build_target() {
 		aur_dep_files+=("$f")
 	done
 
-	local copyname="paruz-$pkgbase"
+	local copyname="paruguard-$pkgbase"
 	build_sync_copy "$copyname"
 	build_ensure_srcpool   # makepkg needs a user-writable SRCDEST in both modes
 
 	# Decide the build's network mode. Default is off (I2). Packages that fetch
-	# their own build deps (cargo/go/npm/…) can't build offline, so paruz offers
+	# their own build deps (cargo/go/npm/…) can't build offline, so paruguard offers
 	# a networked build; --allow-build-net (ALLOW_BUILD_NET=1) pre-approves it.
 	local netmode=off
 	if [[ "${ALLOW_BUILD_NET:-0}" == 1 ]]; then

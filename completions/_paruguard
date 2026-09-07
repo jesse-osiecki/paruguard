@@ -1,8 +1,8 @@
-#compdef paruz
+#compdef paruguard
 # SPDX-License-Identifier: GPL-3.0-or-later
-# zsh completion for paruz
+# zsh completion for paruguard
 
-_paruz() {
+_paruguard() {
 	local -a ops flags
 	ops=(
 		'-S:hardened AUR/repo install'
@@ -37,7 +37,7 @@ _paruz() {
 
 	case "$state" in
 		op)
-			_describe -t operations 'paruz operation' ops
+			_describe -t operations 'paruguard operation' ops
 			;;
 		rest)
 			_files
@@ -45,4 +45,4 @@ _paruz() {
 	esac
 }
 
-_paruz "$@"
+_paruguard "$@"

@@ -1,11 +1,11 @@
 # Packaging & AUR submission
 
-Maintainer notes for shipping paruz. paruz itself is pure Bash, so the package
+Maintainer notes for shipping paruguard. paruguard itself is pure Bash, so the package
 just installs files (`make install`); there is nothing to compile.
 
 ## The PKGBUILD
 
-`PKGBUILD` in this repo is a **`-git`** package (`pkgname=paruz-git`) that builds
+`PKGBUILD` in this repo is a **`-git`** package (`pkgname=paruguard-git`) that builds
 from the tip of `main`:
 
 - `pkgver()` derives the version from `git describe` (tag-based once tags exist,
@@ -36,12 +36,12 @@ registered (Account → My Account → SSH Public Key). The AUR package lives in
 own git repo, separate from the GitHub source repo.
 
 ```sh
-git clone ssh://aur@aur.archlinux.org/paruz-git.git aur-paruz-git
-cd aur-paruz-git
-cp ../paruz/PKGBUILD .
+git clone ssh://aur@aur.archlinux.org/paruguard-git.git aur-paruguard-git
+cd aur-paruguard-git
+cp ../paruguard/PKGBUILD .
 makepkg --printsrcinfo > .SRCINFO      # REQUIRED by the AUR
 git add PKGBUILD .SRCINFO
-git commit -m "paruz-git <version>"
+git commit -m "paruguard-git <version>"
 git push
 ```
 
@@ -51,19 +51,19 @@ build artifacts (`pkg/`, `src/`, `*.pkg.tar.zst`).
 ## Cutting a tagged release (e.g. v1.0.0)
 
 1. Ensure `main` is pushed to GitHub and fully green (VM rig: `testrig/run.sh`).
-2. Tag: `git tag -a v1.0.0 -m 'paruz v1.0.0' && git push origin v1.0.0`.
-   `pkgver()` then reports `1.0.0.r0.g<hash>` for `paruz-git`.
-3. *(Optional)* also publish a fixed **`paruz`** package (not `-git`) that tracks
-   releases: copy the PKGBUILD, set `pkgname=paruz`, `pkgver=1.0.0`, drop
+2. Tag: `git tag -a v1.0.0 -m 'paruguard v1.0.0' && git push origin v1.0.0`.
+   `pkgver()` then reports `1.0.0.r0.g<hash>` for `paruguard-git`.
+3. *(Optional)* also publish a fixed **`paruguard`** package (not `-git`) that tracks
+   releases: copy the PKGBUILD, set `pkgname=paruguard`, `pkgver=1.0.0`, drop
    `pkgver()`, and point `source` at the tag tarball:
 
    ```sh
-   source=("$pkgname-$pkgver.tar.gz::https://github.com/jesse-osiecki/paruz/archive/refs/tags/v$pkgver.tar.gz")
+   source=("$pkgname-$pkgver.tar.gz::https://github.com/jesse-osiecki/paruguard/archive/refs/tags/v$pkgver.tar.gz")
    ```
 
-   Then submit it to `ssh://aur@aur.archlinux.org/paruz.git` the same way.
+   Then submit it to `ssh://aur@aur.archlinux.org/paruguard.git` the same way.
 
 ## After publishing
 
 Re-run `testrig/smoke-packaged.sh` against the pushed tree to confirm the exact
-`makepkg -si` → `paruz-setup` → real-install path a user will run.
+`makepkg -si` → `paruguard-setup` → real-install path a user will run.

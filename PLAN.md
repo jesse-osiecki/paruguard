@@ -1,10 +1,10 @@
-# paruz — Zero-Trust AUR Installer: Design & Security Invariants
+# paruguard — Zero-Trust AUR Installer: Design & Security Invariants
 
 > **Status:** implemented. This document is the authoritative design and
 > **security-invariant reference** (§2, I1–I7) — code comments cite it as
 > `PLAN.md §N`. Keep it in sync when behavior changes; do not regress the
 > invariants.
-> **Scope:** a portable Bash tool `paruz` (+ `paruz-setup` bootstrap) that hardens
+> **Scope:** a portable Bash tool `paruguard` (+ `paruguard-setup` bootstrap) that hardens
 > AUR install/upgrade on Arch Linux against supply-chain (maintainer-takeover) attacks,
 > while preserving `paru`/`pacman` muscle memory.
 
@@ -12,7 +12,7 @@
 
 ## 0. TL;DR for the implementer
 
-Build a Bash wrapper, `paruz`, that for AUR **install/upgrade** operations:
+Build a Bash wrapper, `paruguard`, that for AUR **install/upgrade** operations:
 
 1. **Reads & gates** every PKGBUILD/`.install`/maintainer change before building
    (git diff gate + AUR-RPC maintainer gate + `aur-scan` static analysis; **fail closed**).
@@ -27,7 +27,7 @@ Build a Bash wrapper, `paruz`, that for AUR **install/upgrade** operations:
 6. Optionally folds in **`flatpak update`** on full upgrades.
 
 Everything that is *not* an AUR sync-install/upgrade is passed straight through to stock
-`paru`. `paruz` is a thin, auditable orchestrator around **stock, signed paru + pacman +
+`paru`. `paruguard` is a thin, auditable orchestrator around **stock, signed paru + pacman +
 devtools + ks-aur-scanner** — it is **not** a fork of paru.
 
 ---
@@ -72,7 +72,7 @@ These are the contract. Any implementation choice is acceptable iff it preserves
 - **I2 — The build phase has no network — by default.** `build()`/`package()` run with the
   network namespace stripped (`unshare -n`), after sources+deps are provisioned. **Opt-in
   exception:** a package that fetches its own build dependencies (cargo/go/npm/pip/…) cannot
-  build offline; paruz auto-detects this and offers (or `--allow-build-net` pre-approves) a
+  build offline; paruguard auto-detects this and offers (or `--allow-build-net` pre-approves) a
   **networked** build. That build is still chroot- and secret-isolated (I3), gated (I5), and
   installed `--noscriptlet` (I4) — but it is a conscious, per-package waiver of I2 (§6.3).
 - **I3 — The build env never exposes secrets.** No bind mount of `$HOME`, `~/.ssh`,
@@ -98,7 +98,7 @@ gate failure through it.
 ## 3. Environment facts
 
 These describe a typical current Arch system with the AUR-build stack installed.
-`paruz-setup` (§8) re-establishes these on any target machine; `paruz` should also assert
+`paruguard-setup` (§8) re-establishes these on any target machine; `paruguard` should also assert
 the critical ones at runtime and **fail closed** (I7) if missing.
 
 ### 3.1 Tooling present
@@ -106,7 +106,7 @@ the critical ones at runtime and **fail closed** (I7) if missing.
 `pkgctl`), `pacman`, `ks-aur-scanner 0.1.1` (binary **`aur-scan`**, plus `aur-scan-hook`,
 `aur-scan-wrap`, libalpm hook `90-aur-scanner.hook`), `gvisor-bin`/`runsc 20260406`,
 `flatpak`, and `jq curl git expac bwrap` — all on `PATH`. **`bpftool` is NOT installed**
-→ ships in the **`bpf`** package; `paruz-setup` installs it (needed for the IOC check).
+→ ships in the **`bpf`** package; `paruguard-setup` installs it (needed for the IOC check).
 
 ### 3.2 Build infrastructure (reuse — do not recreate)
 - Local repo: `/var/lib/repo/aur/` — `aur.db` (+ `.files`), group `wheel`, `g+w`,
@@ -120,7 +120,7 @@ the critical ones at runtime and **fail closed** (I7) if missing.
   ```
 - `~/.config/paru/paru.conf`: `LocalRepo = aur`, `Chroot = /var/lib/aurbuild`.
   (Note: an existing `paru.conf` can end up with the `[options]` header duplicated —
-  harmless but `paruz-setup` should write a single clean block.)
+  harmless but `paruguard-setup` should write a single clean block.)
 
 ### 3.3 paru capabilities (verified against paru 2.1.0 source)
 - **`--noinstall`** builds + `repo-add`s targets into the local repo **without installing
@@ -143,7 +143,7 @@ the critical ones at runtime and **fail closed** (I7) if missing.
   into the copy before building — `:148-163`, `:309`), `-d <dir>` / `-D <dir>` (rw/ro bind),
   `-u` (update copy), `-c` (clean/re-sync copy from pristine root).
 - Reads `SRCDEST/PKGDEST/LOGDEST/PACKAGER` from `makepkg.conf`/env; if unset they default
-  to `$PWD` (`:362-366`). Host `makepkg.conf` here leaves them **unset** → paruz must set
+  to `$PWD` (`:362-366`). Host `makepkg.conf` here leaves them **unset** → paruguard must set
   them explicitly.
 
 ### 3.5 `arch-nspawn` network (verified from `/usr/bin/arch-nspawn`)
@@ -173,26 +173,26 @@ cache updates, etc. **still run**. The only thing skipped is the package's *cust
 ### 3.8 Existing ks-aur-scanner shell integration is NON-gating
 `/usr/share/aur-scan/integration.zsh` wraps `paru()`/`yay()` and runs
 `aur-scan check --severity high --no-confirm` **without `--fail-on`** → it prints findings
-and **always proceeds** (exit 0). `paruz` must not rely on it. `paruz-setup` should
+and **always proceeds** (exit 0). `paruguard` must not rely on it. `paruguard-setup` should
 recommend disabling the auto-scan for `paru` (e.g. `AUR_SCAN_ENABLED=0`, or removing the
-source line) so you don't get a confusing, weaker second scan layered under paruz's real
+source line) so you don't get a confusing, weaker second scan layered under paruguard's real
 gate.
 
 ---
 
 ## 4. Command surface
 
-`paruz` inspects the pacman-style operation and either **hardens** or **passes through**.
+`paruguard` inspects the pacman-style operation and either **hardens** or **passes through**.
 
 | Invocation | Behavior |
 |---|---|
-| `paruz -S <pkgs>` | Hardened AUR install (repo targets among them handled normally). |
-| `paruz -Syu`, `paruz` (bare), `paruz -Su` | Hardened **full upgrade**: official repo upgrade → AUR upgrade → Flatpak. |
-| `paruz -Sua` | Hardened AUR-only upgrade. |
-| `paruz -Qua` | Pass-through (list AUR updates). |
-| `paruz -R…`, `-Q…`, `-Ss`, `-Si`, `-G`, `-F…`, `-Sc`, etc. | `exec command paru "$@"` unchanged. |
+| `paruguard -S <pkgs>` | Hardened AUR install (repo targets among them handled normally). |
+| `paruguard -Syu`, `paruguard` (bare), `paruguard -Su` | Hardened **full upgrade**: official repo upgrade → AUR upgrade → Flatpak. |
+| `paruguard -Sua` | Hardened AUR-only upgrade. |
+| `paruguard -Qua` | Pass-through (list AUR updates). |
+| `paruguard -R…`, `-Q…`, `-Ss`, `-Si`, `-G`, `-F…`, `-Sc`, etc. | `exec command paru "$@"` unchanged. |
 
-**paruz-specific flags** (strip before delegating):
+**paruguard-specific flags** (strip before delegating):
 
 - `--fail-on <level>` — static-scan gate threshold (default `critical`; warn at `high`).
 - `--allow-maintainer-change` — permit a maintainer change for this run (still shows diff).
@@ -204,8 +204,8 @@ gate.
 - `--sandbox=chroot|gvisor` — build backend (default `chroot`; `gvisor` is Phase 2, §13).
 - `--dry-run` — print the plan (gates, build, install commands) without executing.
 
-**Muscle memory:** `paruz` calls **`command paru`** internally so it is unaffected by the
-existing zsh `paru()` wrapper. Users may optionally `alias paru=paruz`. Never let `paruz`
+**Muscle memory:** `paruguard` calls **`command paru`** internally so it is unaffected by the
+existing zsh `paru()` wrapper. Users may optionally `alias paru=paruguard`. Never let `paruguard`
 call a shell function named `paru`/`pacman` (use `command`/absolute paths) — avoids the
 wrapper-loop and the non-gating scan.
 
@@ -214,7 +214,7 @@ wrapper-loop and the non-gating scan.
 ## 5. High-level flow
 
 ```
-paruz <args>
+paruguard <args>
   │
   ├─ not an AUR sync-install/upgrade? ───────────────► exec command paru <args>   (passthrough)
   │
@@ -247,7 +247,7 @@ which is a loud CRITICAL.
 - **eBPF rootkit maps:** `sudo bpftool map list` and grep names
   `hidden_pids|hidden_names|hidden_inodes`. Any hit → CRITICAL banner: rootkit likely ran
   as root; advise credential rotation + host reinstall; **abort** the run (I7). If
-  `bpftool` is absent, print a warning that this check was skipped (paruz-setup installs
+  `bpftool` is absent, print a warning that this check was skipped (paruguard-setup installs
   `bpf`, so this should be rare).
 - **Known-compromised packages:** intersect `pacman -Qq` with
   `share/known-bad-packages.txt` (see §9.3). Any match → loud warning (rotate creds,
@@ -257,8 +257,8 @@ which is a loud CRITICAL.
   holds network sockets, i.e. Tor-masquerading-as-dbus. Document as a heuristic.)*
 
 ### 6.1 Fetch (`lib/gate.sh`)
-For each AUR target `$pkg`, into a paruz-owned work root
-(`${XDG_STATE_HOME:-~/.local/state}/paruz/work/`):
+For each AUR target `$pkg`, into a paruguard-owned work root
+(`${XDG_STATE_HOME:-~/.local/state}/paruguard/work/`):
 
 ```bash
 ( cd "$WORKROOT" && command paru -G "$pkg" )   # clones AUR git repo → $WORKROOT/<pkgbase>
@@ -268,7 +268,7 @@ For each AUR target `$pkg`, into a paruz-owned work root
 the diff gate). Do **not** run `makepkg` yet.
 
 ### 6.2 Gate (`lib/gate.sh`) — fail closed (I5, I7)
-State dir: `${XDG_STATE_HOME:-~/.local/state}/paruz/approved/<pkgbase>/` holding the last
+State dir: `${XDG_STATE_HOME:-~/.local/state}/paruguard/approved/<pkgbase>/` holding the last
 **approved git commit** and **maintainer**.
 
 1. **Maintainer gate** (ties directly to the orphan-adoption vector):
@@ -302,8 +302,8 @@ All three must pass (or be explicitly overridden where allowed) before build.
 
 ### 6.3 Isolated build (`lib/build.sh`) — satisfies I2, I3 (I1 residual per §10)
 
-**As implemented.** Per package, with a **dedicated working copy** `paruz-<pkgbase>`, a
-persistent host source pool `SRCDEST=/var/lib/paruz/srcdest`, and `PKGDEST=/var/lib/repo/aur`:
+**As implemented.** Per package, with a **dedicated working copy** `paruguard-<pkgbase>`, a
+persistent host source pool `SRCDEST=/var/lib/paruguard/srcdest`, and `PKGDEST=/var/lib/repo/aur`:
 
 1. **Sync a fresh working copy** from the pristine root (`btrfs subvolume snapshot` on btrfs,
    else `cp -a --reflink=auto /var/lib/aurbuild/root → copy`).
@@ -317,7 +317,7 @@ persistent host source pool `SRCDEST=/var/lib/paruz/srcdest`, and `PKGDEST=/var/
      signatures verify against **your gpg keyring**, exactly like `makechrootpkg`'s own
      `download_sources`. Verification is **full** (checksums + PGP; no `--skipinteg`/
      `--skippgpcheck`). Then build with the network namespace stripped:
-     `unshare -n -- makechrootpkg -r /var/lib/aurbuild -l paruz-<pkgbase> -I <aur-deps…> -- --holdver`.
+     `unshare -n -- makechrootpkg -r /var/lib/aurbuild -l paruguard-<pkgbase> -I <aur-deps…> -- --holdver`.
      Sources are cached and deps present, so `makechrootpkg`'s own `download_sources`/`--syncdeps`
      need no network; `build()`/`package()` inherit the empty netns → **no network**.
    - **net-on (opt-in, waives I2).** For packages that fetch build deps (cargo/go/npm/pip/…).
@@ -353,10 +353,10 @@ After all targets are built into `[aur]`:
    names (they now resolve via `[aur]`), then split into **repo deps** vs **AUR pkgs**:
    ```bash
    closure=$(pacman -Sp --print-format '%n' --needed <aur-names>)   # deps + aur names
-   aur_names=<the set paruz built this run>
+   aur_names=<the set paruguard built this run>
    repo_deps=closure \ aur_names
    ```
-   (`aur_names` are known because paruz built them; cross-check against `pacman -Slq aur`.)
+   (`aur_names` are known because paruguard built them; cross-check against `pacman -Slq aur`.)
 2. **Install repo deps WITH scriptlets** (signed/trusted):
    `sudo pacman -S --needed --asdeps <repo_deps>`.
 3. **Install AUR packages WITHOUT scriptlets** from the built files:
@@ -392,7 +392,7 @@ For each AUR package whose scriptlet was skipped:
 
 ### 6.6 Snapshot
 On success, write the approved git commit hash and maintainer to
-`…/paruz/approved/<pkgbase>/` for the next run's diff/maintainer gate.
+`…/paruguard/approved/<pkgbase>/` for the next run's diff/maintainer gate.
 
 ### 6.7 Flatpak (upgrade path only)
 `flatpak update` (interactive; respects its own confirmation). Skip with `--no-flatpak`.
@@ -421,10 +421,10 @@ MVP, and the fallback is still filesystem/secret-isolated.
 
 ---
 
-## 8. `paruz-setup` — portable bootstrap (`bin/paruz-setup`)
+## 8. `paruguard-setup` — portable bootstrap (`bin/paruguard-setup`)
 
 Idempotent, re-runnable, prints what it changes, asks before touching system files. Makes a
-fresh Arch machine `paruz`-ready. Steps:
+fresh Arch machine `paruguard`-ready. Steps:
 
 1. **Deps:** `sudo pacman -S --needed devtools flatpak jq expac bpf` and ensure an AUR
    helper exists (paru). `ks-aur-scanner` is itself from the AUR — bootstrap it with plain
@@ -433,29 +433,29 @@ fresh Arch machine `paruz`-ready. Steps:
 2. **Local repo:** create `/var/lib/repo/aur`, `chgrp wheel`, `chmod g+w`, and initialize:
    `repo-add /var/lib/repo/aur/aur.db.tar.zst` (idempotent if it already exists).
 3. **Chroot:** `mkarchroot /var/lib/aurbuild/root base-devel` if absent. Detect btrfs (the
-   chroot uses subvolume snapshots there). Create `/var/lib/paruz/srcdest`.
+   chroot uses subvolume snapshots there). Create `/var/lib/paruguard/srcdest`.
 4. **pacman.conf:** append the `[aur]` block (§3.2) **only if not already present**
    (grep-guard). Never duplicate.
 5. **paru.conf:** write a single clean `[options]` block with `LocalRepo = aur` and
    `Chroot = /var/lib/aurbuild` (de-duplicate if the file already has repeated headers).
 6. **Scanner integration:** detect the non-gating zsh integration (§3.8) and offer to set
-   `AUR_SCAN_ENABLED=0` for `paru` (or comment the source line) so paruz's gate is the
+   `AUR_SCAN_ENABLED=0` for `paru` (or comment the source line) so paruguard's gate is the
    single source of truth.
-7. **Install paruz:** symlink/copy `bin/paruz` (+ `bin/paruz-setup`) into `/usr/local/bin`;
-   install completions; drop default config to `/etc/paruz/paruz.conf` (§9) if absent.
-8. **Self-test:** a `paruz doctor` subcommand that verifies every §3 assumption and reports
+7. **Install paruguard:** symlink/copy `bin/paruguard` (+ `bin/paruguard-setup`) into `/usr/local/bin`;
+   install completions; drop default config to `/etc/paruguard/paruguard.conf` (§9) if absent.
+8. **Self-test:** a `paruguard doctor` subcommand that verifies every §3 assumption and reports
    OK/MISSING per line (model this on `claudenboxen doctor`).
 
 Provide a matching **uninstall/teardown** note (remove `[aur]` block, repo dir, chroot,
-`/var/lib/paruz`) so the change is reversible.
+`/var/lib/paruguard`) so the change is reversible.
 
 ---
 
 ## 9. Config
 
 ### 9.1 File
-`/etc/paruz/paruz.conf` (system) overridden by `${XDG_CONFIG_HOME:-~/.config}/paruz/paruz.conf`
-(user). Simple `KEY=value` sourced by Bash. See `etc/paruz.conf` in this repo for the
+`/etc/paruguard/paruguard.conf` (system) overridden by `${XDG_CONFIG_HOME:-~/.config}/paruguard/paruguard.conf`
+(user). Simple `KEY=value` sourced by Bash. See `etc/paruguard.conf` in this repo for the
 annotated default. Keys:
 
 | Key | Default | Meaning |
@@ -468,25 +468,25 @@ annotated default. Keys:
 | `FLATPAK` | `1` | Fold `flatpak update` into full upgrades. |
 | `IOC` | `1` | Run the IOC self-check. |
 | `ALLOW_CHECK_NET` | `0` | Allow networked `check()` re-run (weakens I2 for tests only). |
-| `KNOWN_BAD_LIST` | `/usr/share/paruz/known-bad-packages.txt` | IOC package list path. |
+| `KNOWN_BAD_LIST` | `/usr/share/paruguard/known-bad-packages.txt` | IOC package list path. |
 
 ### 9.2 Runtime assertions
-On start, `paruz` verifies: `command paru`, `pacman`, `makechrootpkg`, `arch-nspawn`,
+On start, `paruguard` verifies: `command paru`, `pacman`, `makechrootpkg`, `arch-nspawn`,
 `repo-add`, `aur-scan`, `jq`, `curl`, `git`, `bsdtar`, `unshare` exist; `/var/lib/repo/aur`
 and `/var/lib/aurbuild/root` exist and are writable/usable; `[aur]` is configured. Missing
-anything → point at `paruz-setup` and **fail closed** (I7).
+anything → point at `paruguard-setup` and **fail closed** (I7).
 
 ### 9.3 `share/known-bad-packages.txt`
 Seed with the confirmed Wave-2 names (see the file in this repo) plus a comment that it is
-point-in-time and advisory. `paruz-setup` installs it to `/usr/share/paruz/`.
+point-in-time and advisory. `paruguard-setup` installs it to `/usr/share/paruguard/`.
 
 ---
 
 ## 10. Non-goals & residual risks (state honestly in README + `--help`)
 
 - **Static analysis is not complete.** `aur-scan` catches known patterns; obfuscated/novel
-  payloads may pass. paruz is defense-in-depth, not a guarantee.
-- **Runtime risk is out of scope.** paruz protects *build* and *install*. A pre-shipped ELF
+  payloads may pass. paruguard is defense-in-depth, not a guarantee.
+- **Runtime risk is out of scope.** paruguard protects *build* and *install*. A pre-shipped ELF
   that only acts when you later *run* the installed program is not something an installer
   can neutralize — that is the inherent risk of running untrusted software.
 - **Host-side parse during source verify (I1 residual).** Recipe A performs `--verifysource`
@@ -496,7 +496,7 @@ point-in-time and advisory. `paruz-setup` installs it to `/usr/share/paruz/`.
 - **Build-time kernel escape.** The chroot shares the host kernel; a build carrying a kernel
   LPE could escape. Mitigated only by the Phase-2 gVisor backend (§13). The documented
   attacks (infostealer/fetch/persist) are already neutralized by I2/I3/I4 without it.
-- **Trust anchors.** paru, pacman, devtools, ks-aur-scanner, and paruz itself are trusted;
+- **Trust anchors.** paru, pacman, devtools, ks-aur-scanner, and paruguard itself are trusted;
   install them from signed sources / hand-reviewed clones.
 
 ---
@@ -507,7 +507,7 @@ Use fixture PKGBUILDs under `tests/fixtures/` and a local test AUR mirror or `au
 scan` on directories (no live AUR needed for most). Each must pass:
 
 1. **Static gate blocks.** Fixture with `curl … | bash` (DLE-001) ⇒ `aur-scan scan
-   --fail-on critical` non-zero ⇒ paruz **aborts**, nothing built/installed.
+   --fail-on critical` non-zero ⇒ paruguard **aborts**, nothing built/installed.
 2. **`.install` addition escalates.** Update fixture that adds a `.install` with
    `INSTALL-003` (network in scriptlet) ⇒ gate escalates and (default No) aborts.
 3. **Maintainer change hard-stops.** Simulate stored maintainer `alice` → RPC `mallory`
@@ -516,16 +516,16 @@ scan` on directories (no live AUR needed for most). Each must pass:
    `curl -m5 https://example.com` (or `getent hosts …`) **must fail** the build under
    Recipe A. A control run without `unshare -n` succeeds — proving I2 is real.
 5. **`--noscriptlet` proven.** Fixture whose `post_install` creates
-   `/tmp/paruz-scriptlet-ran`; after `paruz -S`, that file **must NOT exist** (I4).
+   `/tmp/paruguard-scriptlet-ran`; after `paruguard -S`, that file **must NOT exist** (I4).
    Confirm libalpm-hook side-effects (e.g. desktop-database) still occur.
 6. **Secrets isolation.** Assert the build namespace cannot see `$HOME`/`~/.ssh` (fixture
    `build()` that `test -e ~/.ssh/id_*` must find nothing) (I3).
 7. **Scriptlet split correctness.** An AUR pkg with a repo dep that has a real scriptlet ⇒
    repo dep's scriptlet **runs**, AUR pkg's does **not**.
-8. **Passthrough.** `paruz -Q`, `-Ss`, `-R`, `-Si`, `-G` behave exactly like `paru`.
-9. **Idempotent setup.** `paruz-setup` run twice makes no second change; `[aur]`/paru.conf
-   never duplicated; `paruz doctor` all-OK afterward.
-10. **Fail-closed.** Remove `aur-scan` from PATH ⇒ paruz refuses to install (I7), does not
+8. **Passthrough.** `paruguard -Q`, `-Ss`, `-R`, `-Si`, `-G` behave exactly like `paru`.
+9. **Idempotent setup.** `paruguard-setup` run twice makes no second change; `[aur]`/paru.conf
+   never duplicated; `paruguard doctor` all-OK afterward.
+10. **Fail-closed.** Remove `aur-scan` from PATH ⇒ paruguard refuses to install (I7), does not
     silently skip the scan.
 
 ---
@@ -533,22 +533,22 @@ scan` on directories (no live AUR needed for most). Each must pass:
 ## 12. Deliverables / file layout
 
 ```
-paruz/
+paruguard/
 ├── README.md                      # what it is, threat model summary, install, honest limits
 ├── PLAN.md                        # this file
 ├── LICENSE                        # GPL-3.0-or-later (matches paru/ks-aur-scanner ecosystem)
 ├── bin/
-│   ├── paruz                      # entrypoint: arg parse, dispatch, orchestration, doctor
-│   └── paruz-setup                # §8 bootstrap
+│   ├── paruguard                      # entrypoint: arg parse, dispatch, orchestration, doctor
+│   └── paruguard-setup                # §8 bootstrap
 ├── lib/
 │   ├── common.sh                  # die/abort, logging, colors, runtime assertions (§9.2)
 │   ├── gate.sh                    # fetch + diff + maintainer + aur-scan gate (§6.1–6.2)
 │   ├── build.sh                   # Recipe A net-off build + repo-add (§6.3)
 │   ├── install.sh                 # scriptlet-split install + scriptlet read/gate (§6.4–6.5)
 │   └── ioc.sh                     # IOC self-check (§6.0)
-├── etc/paruz.conf                 # default config (annotated)
+├── etc/paruguard.conf                 # default config (annotated)
 ├── share/known-bad-packages.txt   # IOC list (seed provided)
-├── completions/{paruz.bash,_paruz}
+├── completions/{paruguard.bash,_paruguard}
 └── tests/{run.sh,fixtures/…}      # §11
 ```
 
@@ -570,7 +570,7 @@ Every privileged step uses `sudo` explicitly and is echoed under `--dry-run`.
   `makepkg`-in-`runsc` backend with a purpose-built rootfs (cf. the `claudenboxen` design),
   **not** by nesting `nspawn` inside gVisor.
 - **[Phase 2] Recursive hardened AUR-dependency builds** (replace the §7 fallback).
-- **[Consider] `paruz -Qua`/upgrade UX:** batch the gate review so a big `-Syu` doesn't
+- **[Consider] `paruguard -Qua`/upgrade UX:** batch the gate review so a big `-Syu` doesn't
   prompt per-package with no overview; show a combined "N AUR updates, M changed PKGBUILDs,
   K maintainer changes" summary first, then drill in.
 
@@ -581,7 +581,7 @@ Every privileged step uses `sudo` explicitly and is echoed under `--dry-run`.
 ## 14. Handoff notes
 
 ### 14.1 Ready-to-use implementer prompt
-> Implement `paruz` per `PLAN.md` in this repo. Build `bin/paruz`, `bin/paruz-setup`, and
+> Implement `paruguard` per `PLAN.md` in this repo. Build `bin/paruguard`, `bin/paruguard-setup`, and
 > `lib/*.sh` exactly to the §2 invariants — **fail closed**. Start with the §11 test
 > fixtures (especially test 4, network-off build, and test 5, `--noscriptlet`) so the
 > security guarantees are proven, not assumed. Follow the §7 v1 scope. Do **not** fork
@@ -602,7 +602,7 @@ Every privileged step uses `sudo` explicitly and is echoed under `--dry-run`.
 
 ### 14.4 Traps worth re-reading before coding
 - The existing ks-aur-scanner zsh integration **looks** like a gate but isn't (§3.8) — do
-  not treat its "OK" as meaningful; paruz's own §6.2 gate is the source of truth.
+  not treat its "OK" as meaningful; paruguard's own §6.2 gate is the source of truth.
 - `--noscriptlet` skips only the package `.install`, **not** libalpm hooks (§3.6) — this is
   why the approach doesn't break normal packages; don't "fix" it by re-enabling scriptlets.
 - Network must be present while *provisioning* sources/deps and absent during *build* — the

@@ -2,7 +2,7 @@
 # shellcheck shell=bash
 # lib/common.sh — logging, die/abort, config loading, runtime assertions (PLAN.md §9.2)
 #
-# Sourced by bin/paruz and bin/paruz-setup. Assumes `set -euo pipefail` in the caller.
+# Sourced by bin/paruguard and bin/paruguard-setup. Assumes `set -euo pipefail` in the caller.
 
 # --- colors (disabled when not a tty or NO_COLOR is set) ------------------
 
@@ -15,10 +15,10 @@ fi
 
 # --- logging ----------------------------------------------------------------
 
-log()  { printf '%s[paruz]%s %s\n' "$C_BLUE" "$C_RESET" "$*" >&2; }
-warn() { printf '%s[paruz] WARNING:%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
-ok()   { printf '%s[paruz] OK:%s %s\n' "$C_GREEN" "$C_RESET" "$*" >&2; }
-err()  { printf '%s[paruz] ERROR:%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; }
+log()  { printf '%s[paruguard]%s %s\n' "$C_BLUE" "$C_RESET" "$*" >&2; }
+warn() { printf '%s[paruguard] WARNING:%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
+ok()   { printf '%s[paruguard] OK:%s %s\n' "$C_GREEN" "$C_RESET" "$*" >&2; }
+err()  { printf '%s[paruguard] ERROR:%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; }
 
 # die: the single abort path (I7 — fail closed). Every gate failure, missing
 # tool, or unexpected state must route through this. Never "proceed on error."
@@ -29,7 +29,7 @@ die() {
 
 # critical: for I7 IOC hits — same effect as die(), louder banner.
 critical() {
-	printf '%s[paruz] CRITICAL:%s %s\n' "$C_RED$C_BOLD" "$C_RESET" "$*" >&2
+	printf '%s[paruguard] CRITICAL:%s %s\n' "$C_RED$C_BOLD" "$C_RESET" "$*" >&2
 	exit 1
 }
 
@@ -72,13 +72,13 @@ ALLOW_BUILD_NET=0
 FLATPAK=1
 IOC=1
 ALLOW_CHECK_NET=0
-KNOWN_BAD_LIST=/usr/share/paruz/known-bad-packages.txt
+KNOWN_BAD_LIST=/usr/share/paruguard/known-bad-packages.txt
 
 # load_config — sources system config then user override, each only if
-# present. Values are plain KEY=value assignments (see etc/paruz.conf).
+# present. Values are plain KEY=value assignments (see etc/paruguard.conf).
 load_config() {
-	local sys_conf="/etc/paruz/paruz.conf"
-	local user_conf="${XDG_CONFIG_HOME:-$HOME/.config}/paruz/paruz.conf"
+	local sys_conf="/etc/paruguard/paruguard.conf"
+	local user_conf="${XDG_CONFIG_HOME:-$HOME/.config}/paruguard/paruguard.conf"
 	local f
 	for f in "$sys_conf" "$user_conf"; do
 		if [[ -r "$f" ]]; then
@@ -90,38 +90,38 @@ load_config() {
 
 # --- paths --------------------------------------------------------------
 
-paruz_state_dir()  { printf '%s/paruz' "${XDG_STATE_HOME:-$HOME/.local/state}"; }
-paruz_work_root()  { printf '%s/work' "$(paruz_state_dir)"; }
-paruz_approved_dir() { printf '%s/approved' "$(paruz_state_dir)"; }
+paruguard_state_dir()  { printf '%s/paruguard' "${XDG_STATE_HOME:-$HOME/.local/state}"; }
+paruguard_work_root()  { printf '%s/work' "$(paruguard_state_dir)"; }
+paruguard_approved_dir() { printf '%s/approved' "$(paruguard_state_dir)"; }
 
 AUR_REPO_DIR=/var/lib/repo/aur
 AUR_CHROOT_ROOT=/var/lib/aurbuild
-AUR_SRCPOOL=/var/lib/paruz/srcdest
+AUR_SRCPOOL=/var/lib/paruguard/srcdest
 
 # --- runtime assertions (§9.2) — fail closed (I7) ----------------------
 
-# assert_tools TOOL... — every named tool must be on PATH or paruz aborts.
+# assert_tools TOOL... — every named tool must be on PATH or paruguard aborts.
 assert_tools() {
 	local missing=() t
 	for t in "$@"; do
 		command -v "$t" >/dev/null 2>&1 || missing+=("$t")
 	done
 	if (( ${#missing[@]} > 0 )); then
-		die "missing required tool(s): ${missing[*]} — run 'paruz-setup' to install them"
+		die "missing required tool(s): ${missing[*]} — run 'paruguard-setup' to install them"
 	fi
 }
 
-# assert_environment — verifies the §3 environment facts paruz depends on.
+# assert_environment — verifies the §3 environment facts paruguard depends on.
 # Called at the top of every hardened (non-passthrough) invocation.
 assert_environment() {
 	assert_tools command paru pacman makechrootpkg arch-nspawn repo-add \
 		aur-scan jq curl git bsdtar unshare sudo
 
 	[[ -d "$AUR_REPO_DIR" && -w "$AUR_REPO_DIR" ]] \
-		|| die "$AUR_REPO_DIR missing or not writable — run 'paruz-setup'"
+		|| die "$AUR_REPO_DIR missing or not writable — run 'paruguard-setup'"
 	[[ -d "$AUR_CHROOT_ROOT/root" ]] \
-		|| die "$AUR_CHROOT_ROOT/root missing — run 'paruz-setup'"
+		|| die "$AUR_CHROOT_ROOT/root missing — run 'paruguard-setup'"
 
 	grep -q '^\[aur\]' /etc/pacman.conf 2>/dev/null \
-		|| die "[aur] repo not configured in /etc/pacman.conf — run 'paruz-setup'"
+		|| die "[aur] repo not configured in /etc/pacman.conf — run 'paruguard-setup'"
 }

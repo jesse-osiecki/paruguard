@@ -5,14 +5,14 @@
 # Satisfies I4 (host install never runs a package's .install scriptlet) and
 # I6 (sandbox replay is never a security gate — read + gate is the default).
 #
-# Driven by globals the caller (bin/paruz) sets before calling install_run:
+# Driven by globals the caller (bin/paruguard) sets before calling install_run:
 #   ALL_AUR_NAMES      - every AUR pkgname/pkgbase built this run
 #   EXPLICIT_AUR_FILES - built package files for user-requested targets
 #   DEP_AUR_FILES      - built package files for AUR packages pulled in only
 #                         as dependencies of a target
 #   REPLAY_HOOK        - empty, or one of pre_install/post_install/
 #                         pre_upgrade/post_upgrade/pre_remove/post_remove
-#                         (validated by bin/paruz before being set)
+#                         (validated by bin/paruguard before being set)
 
 REPO_INSTALL_DEPS=()
 
@@ -49,7 +49,7 @@ install_repo_deps() {
 # files with --noscriptlet (I4). Explicit targets keep default (explicit)
 # install reason; packages pulled in only as deps are marked --asdeps.
 install_aur_packages() {
-	# These are the local .pkg.tar.zst files paruz already gated and built, so
+	# These are the local .pkg.tar.zst files paruguard already gated and built, so
 	# the install is deterministic; --noconfirm is fine (a conflict here fails
 	# closed, which is acceptable). --noscriptlet is the security control (I4)
 	# and must stay. (The interactive path that matters — resolving upgrade
@@ -118,8 +118,8 @@ install_replay_hook() {
 	# shellcheck disable=SC2016
 	run bwrap --unshare-all --unshare-net --cap-drop ALL \
 		--ro-bind / / --tmpfs /tmp --dev /dev --proc /proc --die-with-parent \
-		--bind "$tmp" /tmp/paruz-replay \
-		bash -c '. /tmp/paruz-replay/.INSTALL; declare -F "$1" >/dev/null && "$1"' _ "$fn" \
+		--bind "$tmp" /tmp/paruguard-replay \
+		bash -c '. /tmp/paruguard-replay/.INSTALL; declare -F "$1" >/dev/null && "$1"' _ "$fn" \
 		|| warn "$base: replay of $fn exited non-zero (observation only — not a security signal)"
 	rm -rf "$tmp"
 }

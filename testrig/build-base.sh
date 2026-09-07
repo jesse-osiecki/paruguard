@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# testrig/build-base.sh — build (or rebuild) the paruz-testrig golden VM:
+# testrig/build-base.sh — build (or rebuild) the paruguard-testrig golden VM:
 # download the Arch cloud image, boot it via virt-install --import +
-# cloud-init, bootstrap an AUR helper, dogfood bin/paruz-setup, smoke-test
+# cloud-init, bootstrap an AUR helper, dogfood bin/paruguard-setup, smoke-test
 # with the fast tier, shut down, and take the "provisioned" external
 # disk-only snapshot that testrig/run.sh reverts to before every cycle.
 #
@@ -151,10 +151,10 @@ ok "SSH is up (elapsed $(elapsed))"
 # --- remote provisioning ----------------------------------------------------
 # Everything here is generic Arch/VM bring-up (keyring, base-devel, an AUR
 # helper) that a real user would already have on their machine — it is
-# NOT part of what PLAN.md asks paruz-setup to do, so it stays outside
-# bin/paruz-setup and lives here instead. The AUR-specific provisioning
+# NOT part of what PLAN.md asks paruguard-setup to do, so it stays outside
+# bin/paruguard-setup and lives here instead. The AUR-specific provisioning
 # (local repo, chroot, paru.conf, pacman.conf) is 100% delegated to the
-# repo's own bin/paruz-setup below — that's the dogfooding requirement.
+# repo's own bin/paruguard-setup below — that's the dogfooding requirement.
 
 remote() {
 	local desc="$1" cmd="$2" logfile="$LOG_DIR/build-base.$3.log"
@@ -180,8 +180,8 @@ remote "bootstrapping paru from AUR (one-time, unhardened — same pattern PLAN.
 log "copying repo into the guest ($GUEST_REPO_DIR)"
 rsync_to_guest "$ip" "$REPO_ROOT" "$GUEST_REPO_DIR"
 
-remote "running the repo's own bin/paruz-setup --yes (dogfooding)" \
-	"cd $GUEST_REPO_DIR && ./bin/paruz-setup --yes" paruz-setup
+remote "running the repo's own bin/paruguard-setup --yes (dogfooding)" \
+	"cd $GUEST_REPO_DIR && ./bin/paruguard-setup --yes" paruguard-setup
 
 remote "smoke-testing with the fast test tier before snapshotting" \
 	"cd $GUEST_REPO_DIR && ./tests/run.sh" fast-smoke-test

@@ -2,19 +2,19 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # testrig/smoke-packaged.sh — validate the PACKAGED install path in the VM:
-# build paruz from the PKGBUILD (a fresh clone of the public repo), install it
-# as a pacman package, then run paruz-setup and a real install using the
+# build paruguard from the PKGBUILD (a fresh clone of the public repo), install it
+# as a pacman package, then run paruguard-setup and a real install using the
 # packaged binary. This is the exact sequence you'd run on a real machine, so
 # it closes the last gap the source-checkout smoke tests don't cover:
 #
 #   * `makepkg -si` builds via the Makefile (build/check/package) and installs
-#   * the packaged /usr/bin/paruz resolves its libs from /usr/lib/paruz/lib
-#   * paruz-setup, run from /usr/bin, takes its is_source_checkout=false branch
+#   * the packaged /usr/bin/paruguard resolves its libs from /usr/lib/paruguard/lib
+#   * paruguard-setup, run from /usr/bin, takes its is_source_checkout=false branch
 #     (files already placed by the package — it must NOT re-symlink anything)
-#   * a real `paruz -S <pkg>` works end-to-end via the packaged binary
+#   * a real `paruguard -S <pkg>` works end-to-end via the packaged binary
 #
-# The provisioned snapshot already ran paruz-setup in *source-checkout* mode
-# (dev symlinks in /usr/local/bin + unowned /etc/paruz, /usr/share/paruz). We
+# The provisioned snapshot already ran paruguard-setup in *source-checkout* mode
+# (dev symlinks in /usr/local/bin + unowned /etc/paruguard, /usr/share/paruguard). We
 # strip those first, so this models a clean machine installing the package for
 # the first time (and so pacman -U doesn't hit "file exists in filesystem").
 #
@@ -35,8 +35,8 @@ usage() {
 	cat <<'EOF'
 Usage: smoke-packaged.sh [--pkg NAME] [--yes] [--keep-disk]
 
-Builds+installs paruz as a pacman package from the PKGBUILD inside the VM,
-then validates paruz-setup (packaged mode) and a real `paruz -S <pkg>`.
+Builds+installs paruguard as a pacman package from the PKGBUILD inside the VM,
+then validates paruguard-setup (packaged mode) and a real `paruguard -S <pkg>`.
 
   --pkg NAME    package to install via the packaged binary (default: downgrade)
   --yes, -y     revert automatically on success without prompting
@@ -84,12 +84,12 @@ FAILED=0
 pass() { ok "PASS  $*"; }
 fail() { err "FAIL  $*"; FAILED=1; }
 
-# pty runner: feeds 'y' to paruz's tty-gated gate (packaged binary on PATH).
-# Bounded feed for paruz's gate prompts; pacman installs run --noconfirm.
-paruz_pty() {
+# pty runner: feeds 'y' to paruguard's tty-gated gate (packaged binary on PATH).
+# Bounded feed for paruguard's gate prompts; pacman installs run --noconfirm.
+paruguard_pty() {
 	local args="$1" logfile="$2" rc=0
 	printf 'y\ny\ny\ny\ny\n' \
-		| ssh -tt "${SSH_OPTS[@]}" "$GUEST_USER@$ip" "paruz $args" 2>&1 \
+		| ssh -tt "${SSH_OPTS[@]}" "$GUEST_USER@$ip" "paruguard $args" 2>&1 \
 		| tee "$logfile" || rc=$?
 	return "$rc"
 }
@@ -98,16 +98,16 @@ paruz_pty() {
 
 log "removing source-checkout dev artifacts (simulating a fresh machine)"
 ssh_guest "$ip" 'sudo rm -f \
-	/usr/local/bin/paruz /usr/local/bin/paruz-setup \
-	/usr/share/bash-completion/completions/paruz /usr/share/zsh/site-functions/_paruz \
-	/etc/paruz/paruz.conf /usr/share/paruz/known-bad-packages.txt
-	sudo rmdir /etc/paruz /usr/share/paruz 2>/dev/null || true' \
+	/usr/local/bin/paruguard /usr/local/bin/paruguard-setup \
+	/usr/share/bash-completion/completions/paruguard /usr/share/zsh/site-functions/_paruguard \
+	/etc/paruguard/paruguard.conf /usr/share/paruguard/known-bad-packages.txt
+	sudo rmdir /etc/paruguard /usr/share/paruguard 2>/dev/null || true' \
 	|| die "failed to clean dev artifacts in guest"
 
 # --- build + install the package via makepkg ---------------------------------
 
 echo
-log "=== building + installing the paruz package (makepkg -si, fresh clone) ==="
+log "=== building + installing the paruguard package (makepkg -si, fresh clone) ==="
 rc=0
 ssh_guest "$ip" '
 	set -e
@@ -115,7 +115,7 @@ ssh_guest "$ip" '
 	# git protocol (not raw.githubusercontent, which is CDN-cached and can lag
 	# a push by minutes) — always the authoritative tip. This is also how a
 	# user actually builds a -git package: clone the repo, then makepkg.
-	git clone --depth 1 https://github.com/jesse-osiecki/paruz.git ~/pkgbuild
+	git clone --depth 1 https://github.com/jesse-osiecki/paruguard.git ~/pkgbuild
 	cd ~/pkgbuild
 	makepkg -si --noconfirm --needed
 ' 2>&1 | tee "$RUN_LOG_DIR/makepkg.log" || rc=$?
@@ -129,54 +129,54 @@ fi
 
 echo
 log "=== validating the installed package ==="
-whichpath=$(ssh_guest "$ip" 'command -v paruz' 2>/dev/null || true)
-if [[ "$whichpath" == "/usr/bin/paruz" ]]; then
-	pass "paruz on PATH resolves to the package (/usr/bin/paruz)"
+whichpath=$(ssh_guest "$ip" 'command -v paruguard' 2>/dev/null || true)
+if [[ "$whichpath" == "/usr/bin/paruguard" ]]; then
+	pass "paruguard on PATH resolves to the package (/usr/bin/paruguard)"
 else
-	fail "paruz on PATH is '$whichpath' (expected /usr/bin/paruz)"
+	fail "paruguard on PATH is '$whichpath' (expected /usr/bin/paruguard)"
 fi
 
-if ssh_guest "$ip" 'pacman -Qo /usr/bin/paruz' >/dev/null 2>&1; then
-	pass "/usr/bin/paruz is owned by a pacman package"
+if ssh_guest "$ip" 'pacman -Qo /usr/bin/paruguard' >/dev/null 2>&1; then
+	pass "/usr/bin/paruguard is owned by a pacman package"
 else
-	fail "/usr/bin/paruz is not owned by any package"
+	fail "/usr/bin/paruguard is not owned by any package"
 fi
 
-if ssh_guest "$ip" 'paruz --version' >/dev/null 2>&1; then
-	pass "packaged paruz runs and resolves its libs (/usr/lib/paruz/lib)"
+if ssh_guest "$ip" 'paruguard --version' >/dev/null 2>&1; then
+	pass "packaged paruguard runs and resolves its libs (/usr/lib/paruguard/lib)"
 else
-	fail "packaged paruz --version failed (lib resolution broken?)"
+	fail "packaged paruguard --version failed (lib resolution broken?)"
 fi
 
-# --- paruz-setup from /usr/bin must take the packaged (non-checkout) branch --
+# --- paruguard-setup from /usr/bin must take the packaged (non-checkout) branch --
 
 echo
-log "=== paruz-setup in packaged mode (from /usr/bin) ==="
+log "=== paruguard-setup in packaged mode (from /usr/bin) ==="
 rc=0
-ssh_guest "$ip" 'paruz-setup --yes' 2>&1 | tee "$RUN_LOG_DIR/setup.log" || rc=$?
+ssh_guest "$ip" 'paruguard-setup --yes' 2>&1 | tee "$RUN_LOG_DIR/setup.log" || rc=$?
 if (( rc != 0 )); then
-	fail "paruz-setup --yes exited $rc (see $RUN_LOG_DIR/setup.log)"
+	fail "paruguard-setup --yes exited $rc (see $RUN_LOG_DIR/setup.log)"
 else
-	pass "paruz-setup --yes completed"
+	pass "paruguard-setup --yes completed"
 fi
 if grep -qiE 'installed via package|files already in place' "$RUN_LOG_DIR/setup.log"; then
-	pass "paruz-setup detected packaged mode (did not re-symlink a checkout)"
+	pass "paruguard-setup detected packaged mode (did not re-symlink a checkout)"
 else
-	fail "paruz-setup did NOT report packaged mode — is_source_checkout misfired? (see $RUN_LOG_DIR/setup.log)"
+	fail "paruguard-setup did NOT report packaged mode — is_source_checkout misfired? (see $RUN_LOG_DIR/setup.log)"
 fi
 
 # --- real install using the packaged binary ---------------------------------
 
 echo
-log "=== real install via the packaged binary: paruz -S $PKG ==="
+log "=== real install via the packaged binary: paruguard -S $PKG ==="
 rc=0
-paruz_pty "-S $PKG" "$RUN_LOG_DIR/install.log" || rc=$?
+paruguard_pty "-S $PKG" "$RUN_LOG_DIR/install.log" || rc=$?
 if (( rc != 0 )); then
-	fail "paruz -S $PKG exited $rc (see $RUN_LOG_DIR/install.log)"
+	fail "paruguard -S $PKG exited $rc (see $RUN_LOG_DIR/install.log)"
 elif ssh_guest "$ip" "pacman -Qi '$PKG'" >/dev/null 2>&1; then
 	pass "$PKG installed end-to-end via the packaged binary"
 else
-	fail "paruz -S $PKG exited 0 but $PKG is not installed"
+	fail "paruguard -S $PKG exited 0 but $PKG is not installed"
 fi
 
 # --- summary + cleanup ------------------------------------------------------
@@ -187,7 +187,7 @@ if (( FAILED )); then
 	warn "shell in: testrig/console.sh   logs: $RUN_LOG_DIR"
 	exit 1
 fi
-ok "packaged-path validation PASSED — makepkg build/install + packaged paruz-setup + real install all work (elapsed $(elapsed))"
+ok "packaged-path validation PASSED — makepkg build/install + packaged paruguard-setup + real install all work (elapsed $(elapsed))"
 
 if (( KEEP_DISK )); then
 	log "leaving $VM_NAME running (--keep-disk)"

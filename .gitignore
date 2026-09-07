@@ -6,10 +6,11 @@ work/
 *.log
 
 # makepkg build dirs (from building the PKGBUILD in-tree)
+/paruz/
 /pkg/
 /src/
-/paruz/
-/paruz-git/
+/paruguard/
+/paruguard-git/
 
 # editor / OS cruft
 *.swp

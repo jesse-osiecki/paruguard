@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# testrig/smoke-aur-deps.sh — validate paruz's AUR-DEPENDENCY handling (PLAN.md
+# testrig/smoke-aur-deps.sh — validate paruguard's AUR-DEPENDENCY handling (PLAN.md
 # §7) against real packages inside the disposable VM. Each target here depends
 # on at least one package that lives in the AUR (not the official repos), so
 # installing it drives build_handle_unresolved — the v1 "warned, networked
@@ -14,7 +14,7 @@
 #   - the §7 fallback path is what handled it (log shows the NETWORKED-fallback
 #     notice, not some other route)
 #
-# Same auto-approval caveat as smoke-aur.sh: paruz's human gate is answered
+# Same auto-approval caveat as smoke-aur.sh: paruguard's human gate is answered
 # over an SSH pty (confirm() fails closed on a non-tty). Known packages only.
 # Everything happens inside the throwaway VM; nothing touches the host.
 set -uo pipefail
@@ -48,7 +48,7 @@ validating PLAN.md §7 (build_handle_unresolved) end-to-end in the VM.
   --yes, -y     revert automatically on success without prompting
   --keep-disk   leave the VM running at the end even on success
 
-Auto-approves paruz's review gate — validation of known packages only.
+Auto-approves paruguard's review gate — validation of known packages only.
 EOF
 }
 
@@ -90,17 +90,17 @@ log "syncing current working tree into the guest ($GUEST_REPO_DIR)"
 rsync_to_guest "$ip" "$REPO_ROOT" "$GUEST_REPO_DIR"
 
 warn "================================================================"
-warn "AUTO-APPROVING paruz's review gate for the §7 dep test targets"
+warn "AUTO-APPROVING paruguard's review gate for the §7 dep test targets"
 warn "(known packages only — real usage must review these by hand)."
 warn "================================================================"
 
-paruz_in_guest() {
+paruguard_in_guest() {
 	local args="$1" logfile="$2" rc=0
-	# Bounded 'y' feed over a pty for paruz's gate prompts; pacman installs run
+	# Bounded 'y' feed over a pty for paruguard's gate prompts; pacman installs run
 	# --noconfirm, so no pacman prompts need answering here.
 	printf 'y\ny\ny\ny\ny\n' \
 		| ssh -tt "${SSH_OPTS[@]}" "$GUEST_USER@$ip" \
-			"cd '$GUEST_REPO_DIR' && ./bin/paruz $args" 2>&1 \
+			"cd '$GUEST_REPO_DIR' && ./bin/paruguard $args" 2>&1 \
 		| tee "$logfile" \
 		|| rc=$?
 	return "$rc"
@@ -118,9 +118,9 @@ for entry in "${TARGETS[@]}"; do
 	log "=== $target (expects AUR dep: $dep) ==="
 
 	rc=0
-	paruz_in_guest "-S $target" "$logfile" || rc=$?
+	paruguard_in_guest "-S $target" "$logfile" || rc=$?
 	if (( rc != 0 )); then
-		fail "$target: paruz -S exited $rc (see $logfile)"
+		fail "$target: paruguard -S exited $rc (see $logfile)"
 		continue
 	fi
 

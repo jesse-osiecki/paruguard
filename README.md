@@ -1,21 +1,21 @@
-# paruz — zero-trust AUR installer
+# paruguard — zero-trust AUR installer
 
-`paruz` is a thin, auditable Bash wrapper around **stock** `paru` + `pacman` + `devtools` +
+`paruguard` is a thin, auditable Bash wrapper around **stock** `paru` + `pacman` + `devtools` +
 [`ks-aur-scanner`](https://github.com/KiefStudioMA/ks-aur-scanner) that hardens AUR
 install/upgrade against **supply-chain / maintainer-takeover** attacks — while keeping
-`paru`/`pacman` muscle memory (`paruz -S <pkg>`, `paruz -Syu`).
+`paru`/`pacman` muscle memory (`paruguard -S <pkg>`, `paruguard -Syu`).
 
-It is **not** a fork of paru. paru is a dependency; paruz orchestrates it.
+It is **not** a fork of paru. paru is a dependency; paruguard orchestrates it.
 
 ## What it does
 
-For AUR install/upgrade operations, paruz:
+For AUR install/upgrade operations, paruguard:
 
 1. **Reads and gates** every PKGBUILD / `.install` / maintainer change before building
    (git-diff gate + AUR-RPC maintainer gate + `aur-scan` static analysis — **fail closed**).
 2. **Builds in a chroot with the network turned off** after sources/deps are provisioned,
    so a build-time payload can't fetch a second stage or exfiltrate. Packages that fetch
-   their own build dependencies (cargo/go/npm/pip/…) can't build offline; paruz detects
+   their own build dependencies (cargo/go/npm/pip/…) can't build offline; paruguard detects
    these and prompts to run a **networked** build instead — still chroot- and secret-
    isolated, gated, and `--noscriptlet`-installed, but a conscious per-package waiver of the
    network-off guarantee (`--allow-build-net` to pre-approve).
@@ -33,65 +33,65 @@ Everything that isn't an AUR sync-install/upgrade passes straight through to `pa
 - Arch Linux with `base-devel` and `devtools`.
 - An AUR helper — **paru** — and **[ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner)**,
   both from the AUR (bootstrap them once with plain paru or a hand-reviewed `makepkg -si`).
-  paruz orchestrates paru and uses ks-aur-scanner's `aur-scan` as its static-analysis gate.
-- `paruz-setup` installs the remaining dependencies (`jq`, `expac`, `bpf`, `flatpak`, …).
+  paruguard orchestrates paru and uses ks-aur-scanner's `aur-scan` as its static-analysis gate.
+- `paruguard-setup` installs the remaining dependencies (`jq`, `expac`, `bpf`, `flatpak`, …).
 
 ## Installation
 
 **From the AUR** (once published):
 
 ```sh
-paru -S paruz
+paru -S paruguard
 ```
 
 **From source — build a pacman package (recommended):**
 
 ```sh
-git clone https://github.com/jesse-osiecki/paruz.git
-cd paruz
+git clone https://github.com/jesse-osiecki/paruguard.git
+cd paruguard
 makepkg -si          # builds via the Makefile (runs the fast test tier as `make check`)
 ```
 
-Installs a pacman-tracked package; remove later with `sudo pacman -R paruz-git`.
+Installs a pacman-tracked package; remove later with `sudo pacman -R paruguard-git`.
 
 **From source — without packaging:**
 
 ```sh
-git clone https://github.com/jesse-osiecki/paruz.git
-cd paruz
+git clone https://github.com/jesse-osiecki/paruguard.git
+cd paruguard
 sudo make install    # installs under /usr (PREFIX overridable); undo with `sudo make uninstall`
 ```
 
 ## Setup & first use
 
-`paruz-setup` configures the build environment. It is idempotent and prompts before it
+`paruguard-setup` configures the build environment. It is idempotent and prompts before it
 touches any system file:
 
 ```sh
-paruz-setup      # sets up the [aur] local repo + aurbuild chroot, reconciles
+paruguard-setup      # sets up the [aur] local repo + aurbuild chroot, reconciles
                  # pacman.conf/paru.conf, installs deps, and offers to disable the
-                 # non-gating ks-aur-scanner shell integration so paruz's gate is authoritative
-paruz doctor     # verify every prerequisite is in place (fails loudly if not)
+                 # non-gating ks-aur-scanner shell integration so paruguard's gate is authoritative
+paruguard doctor     # verify every prerequisite is in place (fails loudly if not)
 ```
 
-Then use it like paru/pacman — paruz hardens AUR install/upgrade and passes everything else
+Then use it like paru/pacman — paruguard hardens AUR install/upgrade and passes everything else
 straight through:
 
 ```sh
-paruz -S <pkg>            # hardened AUR install — review the PKGBUILD / maintainer gate
-paruz -Syu                # hardened full upgrade: official repos -> AUR -> flatpak
-paruz -Ss <term>          # passthrough to paru unchanged
-paruz --dry-run -S <pkg>  # print the plan without building or installing
+paruguard -S <pkg>            # hardened AUR install — review the PKGBUILD / maintainer gate
+paruguard -Syu                # hardened full upgrade: official repos -> AUR -> flatpak
+paruguard -Ss <term>          # passthrough to paru unchanged
+paruguard --dry-run -S <pkg>  # print the plan without building or installing
 ```
 
-`paruz --help` lists the full flag set (`--fail-on`, `--allow-maintainer-change`,
+`paruguard --help` lists the full flag set (`--fail-on`, `--allow-maintainer-change`,
 `--replay-hook`, `--no-flatpak`, `--no-ioc`, …).
 
 ## Uninstall
 
 ```sh
-paruz-setup --uninstall   # undo the build-environment setup (prompted, reversible)
-sudo pacman -R paruz-git  # or `sudo make uninstall` for a `make install`
+paruguard-setup --uninstall   # undo the build-environment setup (prompted, reversible)
+sudo pacman -R paruguard-git  # or `sudo make uninstall` for a `make install`
 ```
 
 ## Status
@@ -104,7 +104,7 @@ acceptance tier; the live tier (real chroot builds/installs) runs in a disposabl
 
 ## Honest limits
 
-paruz is **defense-in-depth, not a guarantee.** Static analysis can't catch every payload;
+paruguard is **defense-in-depth, not a guarantee.** Static analysis can't catch every payload;
 it protects *build* and *install* time, not the inherent risk of *running* untrusted
 software afterward; and the chroot shares the host kernel (a build-time kernel-escape
 exploit is only mitigated by the planned gVisor backend). See PLAN.md §10.

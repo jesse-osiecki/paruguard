@@ -3,7 +3,7 @@
 Instructions for any agent (or human) working in this repo. `CLAUDE.md` is a
 symlink to this file — one source of truth. Follow these exactly.
 
-## paruz in one line
+## paruguard in one line
 A thin, auditable Bash wrapper around **stock** `paru` + `pacman` + `devtools` +
 `ks-aur-scanner` that hardens AUR install/upgrade against supply-chain /
 maintainer-takeover attacks. It is **not** a fork of paru — it orchestrates it.
@@ -27,7 +27,7 @@ Do not route around it with `sudo`, `sg`, `su`, an alternate tool, or a
 rephrased command. A denial is a signal to hand control back, not a puzzle.
 
 ## Security is the whole point — do not regress it
-paruz's security invariants (I1–I7) are the contract; they are defined in
+paruguard's security invariants (I1–I7) are the contract; they are defined in
 **`PLAN.md` §2**. Any change must preserve all of them. In particular:
 - **Fail closed (I7).** Any gate error, ambiguity, missing security tool, or
   unexpected state must abort the install via the single `die()` path — never
@@ -38,7 +38,7 @@ paruz's security invariants (I1–I7) are the contract; they are defined in
   every AUR install/upgrade passes the gate (I5); sandbox replay is never a
   security gate (I6).
 - Never call a shell function named `paru`/`pacman`; always use `command paru`
-  and absolute/`command` pacman, so paruz is unaffected by user shell wrappers
+  and absolute/`command` pacman, so paruguard is unaffected by user shell wrappers
   and never re-triggers the non-gating ks-aur-scanner shell integration.
 
 ## Build / test / lint
@@ -46,7 +46,7 @@ paruz's security invariants (I1–I7) are the contract; they are defined in
 - `make test` — the fast, non-privileged acceptance tier (`tests/run.sh`).
 - `make lint` — `shellcheck -x` (run it; keep the tree shellcheck-clean).
 - `make install` — DESTDIR-aware install (used by the `PKGBUILD` too).
-- The **live** test tier (real chroot builds, real installs, `paruz-setup`)
+- The **live** test tier (real chroot builds, real installs, `paruguard-setup`)
   needs root + a real Arch environment and mutates system state. Do **not** run
   it on a dev machine — run it in the VM rig (below).
 
@@ -67,6 +67,6 @@ uses `sudo` explicitly and is echoed under `--dry-run`. Match surrounding code.
 
 ## Layout & design reference
 `bin/` (entrypoint + bootstrap), `lib/*.sh` (gate/build/install/ioc/common),
-`etc/paruz.conf`, `share/`, `completions/`, `tests/`, `testrig/`.
+`etc/paruguard.conf`, `share/`, `completions/`, `tests/`, `testrig/`.
 **`PLAN.md` is the authoritative design + security-invariant reference** — code
 comments cite it as `PLAN.md §N`. Keep it in sync when behavior changes.

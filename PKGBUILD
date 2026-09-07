@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Maintainer: Jesse Osiecki <jesse@jjo.ninja>
 #
-# This is a -git PKGBUILD: it builds paruz from the tip of the git repo.
-# When you cut tagged releases, copy this to a `paruz` PKGBUILD with a
+# This is a -git PKGBUILD: it builds paruguard from the tip of the git repo.
+# When you cut tagged releases, copy this to a `paruguard` PKGBUILD with a
 # fixed `source=("...::git+URL#tag=v$pkgver")` and drop the pkgver() function.
 
-pkgname=paruz-git
-_pkgname=paruz
+pkgname=paruguard-git
+_pkgname=paruguard
 pkgver=0.1.0.r4.ge2982c6
 pkgrel=1
 pkgdesc="Zero-trust AUR installer: hardened, auditable wrapper around paru/pacman"
 arch=('any')
-url="https://github.com/jesse-osiecki/paruz"
+url="https://github.com/jesse-osiecki/paruguard"
 license=('GPL-3.0-or-later')
 
-# Runtime tools paruz asserts at startup (PLAN.md §9.2). paru and
+# Runtime tools paruguard asserts at startup (PLAN.md §9.2). paru and
 # ks-aur-scanner live in the AUR; an AUR helper resolves them.
 depends=(
 	'bash'
 	'pacman'
 	'devtools'        # makechrootpkg, arch-nspawn, mkarchroot, repo-add
-	'paru'            # AUR: the helper paruz orchestrates (never forks)
+	'paru'            # AUR: the helper paruguard orchestrates (never forks)
 	'ks-aur-scanner'  # AUR: provides the `aur-scan` static-analysis gate
 	'jq'
 	'curl'
@@ -42,7 +42,7 @@ provides=("$_pkgname")
 conflicts=("$_pkgname")
 options=('!strip')  # nothing to strip; pure Bash
 
-source=("$_pkgname::git+https://github.com/jesse-osiecki/paruz.git")
+source=("$_pkgname::git+https://github.com/jesse-osiecki/paruguard.git")
 sha256sums=('SKIP')
 
 pkgver() {

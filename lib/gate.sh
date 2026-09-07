@@ -4,7 +4,7 @@
 #
 # Satisfies I5 (every AUR install/upgrade passes the gate) and I7 (fail closed).
 # Requires lib/common.sh to be sourced first. Uses $FAIL_ON, $WARN_ON,
-# $ALLOW_MAINTAINER_CHANGE from config/CLI (see bin/paruz).
+# $ALLOW_MAINTAINER_CHANGE from config/CLI (see bin/paruguard).
 
 ORPHAN_MARK='«orphan»'
 
@@ -37,10 +37,10 @@ gate_resolve_info() {
 }
 
 # gate_fetch PKGBASE — clones/updates the AUR git repo via `paru -G` into the
-# paruz work root. Echoes the clone directory on stdout.
+# paruguard work root. Echoes the clone directory on stdout.
 gate_fetch() {
 	local pkgbase="$1" workroot clonedir
-	workroot=$(paruz_work_root)
+	workroot=$(paruguard_work_root)
 	mkdir -p "$workroot"
 	log "$pkgbase: fetching from AUR (paru -G)..."
 	( cd "$workroot" && command paru -G "$pkgbase" ) >&2 \
@@ -57,7 +57,7 @@ gate_fetch() {
 gate_maintainer() {
 	local pkgbase="$1" current="${2:-$ORPHAN_MARK}"
 	local approved_dir
-	approved_dir="$(paruz_approved_dir)/$pkgbase"
+	approved_dir="$(paruguard_approved_dir)/$pkgbase"
 	local maint_file="$approved_dir/maintainer"
 	local stored=""
 	[[ -r "$maint_file" ]] && stored=$(<"$maint_file")
@@ -70,7 +70,7 @@ gate_maintainer() {
 	if [[ "$stored" != "$current" ]]; then
 		warn "$pkgbase: maintainer changed: '$stored' -> '$current'"
 		if [[ "$stored" == "$ORPHAN_MARK" || "$current" == "$ORPHAN_MARK" ]]; then
-			warn "$pkgbase: this is an ORPHAN-ADOPTION event — the primary supply-chain takeover vector paruz defends against"
+			warn "$pkgbase: this is an ORPHAN-ADOPTION event — the primary supply-chain takeover vector paruguard defends against"
 		fi
 		if [[ "${ALLOW_MAINTAINER_CHANGE:-0}" == 1 ]]; then
 			warn "$pkgbase: --allow-maintainer-change set — proceeding despite maintainer change"
@@ -87,7 +87,7 @@ gate_maintainer() {
 gate_diff() {
 	local pkgbase="$1" clonedir="$2"
 	local approved_dir
-	approved_dir="$(paruz_approved_dir)/$pkgbase"
+	approved_dir="$(paruguard_approved_dir)/$pkgbase"
 	local commit_file="$approved_dir/commit"
 	local head
 	head=$(git -C "$clonedir" rev-parse HEAD)
@@ -199,7 +199,7 @@ gate_static_scan() {
 gate_snapshot() {
 	local pkgbase="$1" clonedir="$2" maintainer="${3:-$ORPHAN_MARK}"
 	local approved_dir
-	approved_dir="$(paruz_approved_dir)/$pkgbase"
+	approved_dir="$(paruguard_approved_dir)/$pkgbase"
 	mkdir -p "$approved_dir"
 	git -C "$clonedir" rev-parse HEAD > "$approved_dir/commit"
 	printf '%s\n' "$maintainer" > "$approved_dir/maintainer"

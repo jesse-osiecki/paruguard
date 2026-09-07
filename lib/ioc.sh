@@ -11,7 +11,7 @@
 # hid processes/files — treat the host as compromised and abort (I7).
 ioc_check_rootkit_maps() {
 	if ! command -v bpftool >/dev/null 2>&1; then
-		warn "bpftool not found — skipping eBPF rootkit-map check (run 'paruz-setup' to install the 'bpf' package)"
+		warn "bpftool not found — skipping eBPF rootkit-map check (run 'paruguard-setup' to install the 'bpf' package)"
 		return 0
 	fi
 
@@ -24,7 +24,7 @@ ioc_check_rootkit_maps() {
 	if grep -qiE 'hidden_pids|hidden_names|hidden_inodes' <<<"$maps"; then
 		critical "eBPF rootkit indicator found (hidden_pids/hidden_names/hidden_inodes map present). \
 A rootkit likely ran as root on this host. Rotate all credentials used on this machine and \
-strongly consider reinstalling the OS. paruz refuses to continue."
+strongly consider reinstalling the OS. paruguard refuses to continue."
 	fi
 	ok "no eBPF rootkit maps detected"
 }
@@ -33,7 +33,7 @@ strongly consider reinstalling the OS. paruz refuses to continue."
 # list (§9.3). Advisory: warns loudly but never blocks (the list is
 # point-in-time and incomplete).
 ioc_check_known_bad() {
-	local list="${KNOWN_BAD_LIST:-/usr/share/paruz/known-bad-packages.txt}"
+	local list="${KNOWN_BAD_LIST:-/usr/share/paruguard/known-bad-packages.txt}"
 	if [[ ! -r "$list" ]]; then
 		warn "known-bad package list not found at $list — skipping"
 		return 0

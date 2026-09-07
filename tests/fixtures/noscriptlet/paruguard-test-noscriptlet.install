@@ -1,0 +1,7 @@
+post_install() {
+	touch /tmp/paruguard-scriptlet-ran
+}
+
+post_upgrade() {
+	touch /tmp/paruguard-scriptlet-ran
+}

@@ -21,7 +21,7 @@ err()  { printf '%s[testrig] ERROR:%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
 # confirm PROMPT [default(y|n)] — non-interactive shells and EOF default to
-# "no" (fail closed), matching paruz's own lib/common.sh convention.
+# "no" (fail closed), matching paruguard's own lib/common.sh convention.
 confirm() {
 	local prompt="$1" default="${2:-n}" reply suffix
 	if [[ "$default" == y ]]; then suffix="[Y/n]"; else suffix="[y/N]"; fi

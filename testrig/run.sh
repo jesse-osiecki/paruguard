@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# testrig/run.sh — one disposable test cycle: revert the paruz-testrig VM
+# testrig/run.sh — one disposable test cycle: revert the paruguard-testrig VM
 # to its golden "provisioned" snapshot, push the CURRENT working tree into
 # it, run the repo's own tests/run.sh (fast) and tests/run.sh --live
 # inside the guest, report pass/fail, and (by default) tidy up. Exits

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# bash completion for paruz
+# bash completion for paruguard
 
-_paruz() {
+_paruguard() {
 	local cur prev
 	cur="${COMP_WORDS[COMP_CWORD]}"
 	prev="${COMP_WORDS[COMP_CWORD - 1]}"
@@ -30,4 +30,4 @@ _paruz() {
 		COMPREPLY=( $(compgen -W "$ops" -- "$cur") )
 	fi
 }
-complete -F _paruz paruz
+complete -F _paruguard paruguard

@@ -1,15 +1,15 @@
-# paruz test rig
+# paruguard test rig
 
 A disposable Arch Linux VM for exercising `tests/run.sh --live` — the tier of
-paruz's own test suite that does real `makechrootpkg`/`arch-nspawn` chroot
+paruguard's own test suite that does real `makechrootpkg`/`arch-nspawn` chroot
 builds, real `unshare -n` network-namespace stripping, real `pacman -S`/
-`pacman -U` installs, and a real `bin/paruz-setup` run against
+`pacman -U` installs, and a real `bin/paruguard-setup` run against
 `/etc/pacman.conf` and `~/.config/paru/paru.conf`.
 
 None of that is safe to run against your actual machine repeatedly. This rig
 gives it a throwaway machine instead: a libvirt/QEMU VM, built from the
 official Arch cloud image, provisioned by dogfooding the repo's own
-`bin/paruz-setup`, snapshotted right after provisioning so re-running tests is
+`bin/paruguard-setup`, snapshotted right after provisioning so re-running tests is
 cheap, and always reachable for debugging when a test fails.
 
 **Nothing here can touch your host's real `/etc/pacman.conf`,
@@ -52,8 +52,8 @@ testrig/host-setup.sh
 Checks/fixes, in order: `/dev/kvm` access, the `qemu-img`/`qemu-system-x86_64`/
 `virt-install`/`xorriso` packages, `libvirtd` active, your user in the
 `libvirt` group, the libvirt `default` NAT network started+autostarted, a
-dedicated `/var/lib/libvirt/images/paruz-testrig` directory for VM disks, rig
-state under `${XDG_STATE_HOME:-~/.local/state}/paruz-testrig` (ssh keypair,
+dedicated `/var/lib/libvirt/images/paruguard-testrig` directory for VM disks, rig
+state under `${XDG_STATE_HOME:-~/.local/state}/paruguard-testrig` (ssh keypair,
 logs), and a rig-only SSH keypair (never your real `~/.ssh` keys).
 
 It's interactive and idempotent — safe to re-run. If it adds you to the
@@ -63,14 +63,14 @@ continuing; group membership doesn't apply to your already-running shell.
 `testrig/build-base.sh` and `testrig/run.sh` both call `host-setup.sh --check`
 as a preflight and fail fast with a pointer here if something's missing.
 
-### Why `/var/lib/libvirt/images/paruz-testrig`, not somewhere under `$HOME`
+### Why `/var/lib/libvirt/images/paruguard-testrig`, not somewhere under `$HOME`
 
 System libvirtd runs QEMU as the unprivileged `libvirt-qemu` user. A home
 directory is typically mode `0700` (not traversable by other users), so
 `libvirt-qemu` can't even `stat()` into it, and a VM disk placed there fails
 to start with a bare "Permission denied" no matter what the file itself is
 chmod'd to. `host-setup.sh` creates
-`/var/lib/libvirt/images/paruz-testrig` once via `sudo` (`root:libvirt`, mode
+`/var/lib/libvirt/images/paruguard-testrig` once via `sudo` (`root:libvirt`, mode
 `2775`, setgid) so a member of the `libvirt` group can read/write files there
 directly, while libvirt's `dynamic_ownership` (on by default) still chowns the
 actively-referenced disk to `libvirt-qemu:kvm` whenever the domain starts.
@@ -84,7 +84,7 @@ testrig/build-base.sh
 What it does, in order:
 
 1. Downloads the official Arch cloud image (cached under
-   `/var/lib/libvirt/images/paruz-testrig/arch-cloudimg-base.qcow2` —
+   `/var/lib/libvirt/images/paruguard-testrig/arch-cloudimg-base.qcow2` —
    re-runs reuse it), verifies its **SHA256** against the mirror's published
    sum (hard fail on mismatch), and best-effort-verifies the mirror's GPG
    signature if `gpg` and a keyserver are reachable (soft warning otherwise —
@@ -99,10 +99,10 @@ What it does, in order:
    (`git clone .../paru.git && makepkg -si`) — the same "bootstrap once,
    unhardened" pattern PLAN.md §8 already uses for `ks-aur-scanner`. This step
    (keyring/paru bootstrap) is generic Arch bring-up that a real user would
-   already have; it deliberately stays outside `bin/paruz-setup`.
+   already have; it deliberately stays outside `bin/paruguard-setup`.
 5. `rsync`s the current repo into the guest and runs **the repo's own
-   `bin/paruz-setup --yes`** — this is the dogfooding requirement. If
-   `paruz-setup` is broken, this step fails loudly and the base build aborts;
+   `bin/paruguard-setup --yes`** — this is the dogfooding requirement. If
+   `paruguard-setup` is broken, this step fails loudly and the base build aborts;
    that's a real finding, not something the rig works around.
 6. Runs the fast test tier (`tests/run.sh`) as a smoke check that the
    provisioned state is sane before committing to a snapshot.
@@ -135,7 +135,7 @@ What it does:
    was baked into the snapshot — you always test what's on disk right now).
 4. Runs `tests/run.sh --live` inside the guest (both tiers; `--live` runs the
    fast tests too) and streams the output to your terminal, saving a copy
-   under `${XDG_STATE_HOME:-~/.local/state}/paruz-testrig/logs/run-<timestamp>/`.
+   under `${XDG_STATE_HOME:-~/.local/state}/paruguard-testrig/logs/run-<timestamp>/`.
 5. Reports PASS/FAIL per tier and exits non-zero if anything failed —
    `testrig/run.sh` is a valid CI gate command as-is.
 6. **On success**, shuts the VM down and reverts it back to `provisioned`
@@ -167,7 +167,7 @@ testrig/console.sh --serial   # attach to the serial console instead (virsh cons
 ```
 
 The per-tier logs are also saved on the host under
-`.../paruz-testrig/logs/run-<timestamp>/{fast,live}.log`. Once you're done
+`.../paruguard-testrig/logs/run-<timestamp>/{fast,live}.log`. Once you're done
 poking around, either `testrig/run.sh` again (its revert step discards
 whatever the failed run left behind) or shut the VM down yourself.
 
@@ -191,7 +191,7 @@ testrig/teardown.sh --keep-cache # remove the VM/domain but keep the cached
 ```
 
 Removes the domain, its disks, and rig state
-(`${XDG_STATE_HOME:-~/.local/state}/paruz-testrig`). Never touches the
+(`${XDG_STATE_HOME:-~/.local/state}/paruguard-testrig`). Never touches the
 libvirt `default` network or `libvirtd` itself — those are shared host infra
 you may want for other VMs.
 
@@ -200,7 +200,7 @@ you may want for other VMs.
 | Step | Time |
 |---|---|
 | `host-setup.sh` (first run, needs `sudo pacman -S`) | ~1 min |
-| `build-base.sh` (cached cloud image; `pacman -Syu` + compiling `paru` from AUR + `paruz-setup --yes` + fast-tier smoke test) | several minutes end-to-end, dominated by compiling `paru` |
+| `build-base.sh` (cached cloud image; `pacman -Syu` + compiling `paru` from AUR + `paruguard-setup --yes` + fast-tier smoke test) | several minutes end-to-end, dominated by compiling `paru` |
 | `build-base.sh --redownload` | add time for the ~530MB image fetch |
 | `run.sh` (revert → boot → SSH → rsync → `--live`, fast+live combined) | around a minute for revert+boot+SSH+rsync+running both tiers on the current fixture set — dominated by boot, not the tests themselves, since the fixtures are tiny |
 | `run.sh --fast-only` | well under a minute end-to-end |
@@ -219,22 +219,22 @@ getting SIGKILL'd by the guest's own OOM killer at **both** 2G and 4G, partway
 through linking `src/main.rs` (RSS climbs past 3G and the cloud image's fixed
 ~512M swap doesn't cover the gap). If `build-base.sh` dies partway through
 "bootstrapping paru from AUR" with a `(signal: 9, SIGKILL: kill)` in the log,
-that's this; raise `PARUZ_TESTRIG_MEMORY_MB` further rather than lowering it.
+that's this; raise `PARUGUARD_TESTRIG_MEMORY_MB` further rather than lowering it.
 
-If your host is memory-constrained, `PARUZ_TESTRIG_MEMORY_MB`/
-`PARUZ_TESTRIG_VCPUS`/`PARUZ_TESTRIG_DISK_GB` environment variables (read by
+If your host is memory-constrained, `PARUGUARD_TESTRIG_MEMORY_MB`/
+`PARUGUARD_TESTRIG_VCPUS`/`PARUGUARD_TESTRIG_DISK_GB` environment variables (read by
 `testrig/config.sh`) tune the VM's resources without editing scripts.
 
 ## Known current status (found by actually running this rig)
 
 The point of this rig is to run `tests/run.sh --live` for real instead of
 trusting it untested — doing exactly that surfaced a real bug in the parent
-repo, on the *first* real run, on a stock `paruz-setup --yes` environment:
+repo, on the *first* real run, on a stock `paruguard-setup --yes` environment:
 
 **`lib/build.sh`'s `build_provision_sources()` runs
 `runuser -u builduser -- ... makepkg --verifysource` inside the chroot copy,
 but nothing in the codebase ever creates a `builduser` account there** —
-not `paruz-setup`'s `mkarchroot $AUR_CHROOT_ROOT/root base-devel` call, not
+not `paruguard-setup`'s `mkarchroot $AUR_CHROOT_ROOT/root base-devel` call, not
 `build.sh` itself. `grep -rn builduser lib/ bin/` turns up exactly one hit:
 `lib/build.sh:132`. Every real build hits `runuser: user builduser does not
 exist`, then fails claiming "You do not have write permission for
@@ -248,7 +248,7 @@ step ever runs, test 4 reports PASS without ever exercising the I2 guarantee
 it exists to check. Tests 5 (`noscriptlet`) and 6 (`secrets-isolation`)
 correctly FAIL, but for this provisioning bug, not for the property each is
 actually named after. Confirmed via `testrig/console.sh` +
-`/tmp/paruz-test-{4,5,6}.out` inside the guest — this is not a rig artifact
+`/tmp/paruguard-test-{4,5,6}.out` inside the guest — this is not a rig artifact
 (no nested-virtualization/network-namespace weirdness involved; it's a plain
 missing-user error, same on real hardware).
 

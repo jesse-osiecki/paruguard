@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# testrig/host-setup.sh — idempotent, re-runnable bootstrap for the paruz
+# testrig/host-setup.sh — idempotent, re-runnable bootstrap for the paruguard
 # disposable test rig (see testrig/README.md). Prints what it changes and
-# asks before touching system state. Mirrors bin/paruz-setup's own style,
+# asks before touching system state. Mirrors bin/paruguard-setup's own style,
 # deliberately: every step is grep/existence-guarded and safe to re-run.
 #
 # This is HOST setup — it prepares the machine to run libvirt/QEMU VMs.
 # It never touches /etc/pacman.conf, ~/.config/paru/paru.conf, or any of
-# the real paruz state paths; that's exactly what the VM boundary is for.
+# the real paruguard state paths; that's exactly what the VM boundary is for.
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -23,7 +23,7 @@ CHECK_ONLY=0
 
 usage() {
 	cat <<'EOF'
-testrig/host-setup.sh — prepare this host to run the paruz disposable test rig
+testrig/host-setup.sh — prepare this host to run the paruguard disposable test rig
 
 Usage: host-setup.sh [--dry-run] [--yes] [--check] [-h|--help]
 
@@ -119,7 +119,7 @@ fi
 
 setup_check_platform() {
 	log "step 1/9: platform"
-	check_platform || die "pacman not found — this rig targets an Arch host (matches paruz itself)"
+	check_platform || die "pacman not found — this rig targets an Arch host (matches paruguard itself)"
 }
 
 setup_check_kvm() {
@@ -214,7 +214,7 @@ setup_ssh_key() {
 		return 0
 	fi
 	log "  generating a rig-only ed25519 keypair (never touches ~/.ssh)"
-	run ssh-keygen -t ed25519 -N '' -C paruz-testrig -f "$SSH_KEY" -q
+	run ssh-keygen -t ed25519 -N '' -C paruguard-testrig -f "$SSH_KEY" -q
 }
 
 main() {
