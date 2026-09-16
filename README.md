@@ -84,8 +84,14 @@ paruguard -Ss <term>          # passthrough to paru unchanged
 paruguard --dry-run -S <pkg>  # print the plan without building or installing
 ```
 
-`paruguard --help` lists the full flag set (`--fail-on`, `--allow-maintainer-change`,
-`--replay-hook`, `--no-flatpak`, `--no-ioc`, …).
+A hardened operation asks for `sudo` **once at the start** and keeps the credential
+refreshed in the background for the rest of the run — so a long build (or time spent
+reviewing a gate diff) won't trigger a mid-run re-auth prompt. Nothing runs as root until
+you've authenticated.
+
+`paruguard --help` lists the full flag set: `--fail-on`, `--allow-maintainer-change`,
+`--allow-scan-findings`, `--allow-build-net`, `--replay-hook`, `--no-flatpak`, `--no-ioc`,
+`--sandbox`, `--dry-run`.
 
 ## Uninstall
 
@@ -96,7 +102,7 @@ sudo pacman -R paruguard-git  # or `sudo make uninstall` for a `make install`
 
 ## Status
 
-Implemented and tagged **v0.1.0**. See **[PLAN.md](./PLAN.md)** for the full design
+Implemented and tagged **v1.0.0**. See **[PLAN.md](./PLAN.md)** for the full design
 (network-off build recipe, scriptlet-split install, the gates, the IOC check, security
 invariants I1–I7, and the test plan). `tests/run.sh` runs the fast, non-privileged
 acceptance tier; the live tier (real chroot builds/installs) runs in a disposable VM via
