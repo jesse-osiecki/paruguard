@@ -256,6 +256,7 @@ aur_upgrade_targets() {
 
 op_upgrade_full() {
 	assert_environment
+	sudo_keepalive_start   # one auth up front; refresh until the run ends
 	ioc_self_check 1
 	log "official-repo upgrade (signed, scriptlets ON)..."
 	# Interactive on purpose (no --noconfirm): a full system upgrade is where
@@ -271,6 +272,7 @@ op_upgrade_full() {
 
 op_upgrade_aur() {
 	assert_environment
+	sudo_keepalive_start   # one auth up front; refresh until the run ends
 	ioc_self_check 1
 	aur_upgrade_targets
 	ioc_self_check 0
@@ -278,6 +280,7 @@ op_upgrade_aur() {
 
 op_install() {
 	assert_environment
+	sudo_keepalive_start   # one auth up front; refresh until the run ends
 	ioc_self_check 1
 	local -a targets=("$@") repo_targets=() aur_targets=()
 	local t repo

@@ -59,6 +59,39 @@ run() {
 	"$@"
 }
 
+# --- sudo keepalive ---------------------------------------------------------
+# A hardened install/upgrade makes several `sudo` calls spread across a long
+# build; sudo's credential cache (default 15 min) can expire between them and
+# force a mid-run re-auth. sudo_keepalive_start authenticates once up front,
+# then refreshes the timestamp in the background until the run ends — the same
+# approach makepkg/paru use. sudo_keepalive_stop tears the refresher down; it
+# is wired to an EXIT trap so it always cleans up.
+
+SUDO_KEEPALIVE_PID=""
+
+sudo_keepalive_start() {
+	[[ "${DRY_RUN:-0}" == 1 ]] && return 0
+	[[ -n "$SUDO_KEEPALIVE_PID" ]] && return 0          # already running
+	command -v sudo >/dev/null 2>&1 || return 0
+	# If sudo needs no password (NOPASSWD), this is a no-op; otherwise it
+	# prompts ONCE here, before any long-running work.
+	sudo -v || die "sudo authentication failed — cannot proceed (I7)"
+	# Refresh the timestamp periodically (well under the 15-min default). The
+	# non-interactive `sudo -n -v` never prompts; if the timestamp is somehow
+	# gone it simply fails quietly and the next real sudo call re-prompts.
+	( while true; do sudo -n -v >/dev/null 2>&1 || exit 0; sleep 50; done ) &
+	SUDO_KEEPALIVE_PID=$!
+	# Don't let the background job's own lifecycle leak into job-control output.
+	disown "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+	trap 'sudo_keepalive_stop' EXIT
+}
+
+sudo_keepalive_stop() {
+	[[ -n "$SUDO_KEEPALIVE_PID" ]] || return 0
+	kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+	SUDO_KEEPALIVE_PID=""
+}
+
 # --- config -----------------------------------------------------------------
 
 # Known config keys and their defaults (PLAN.md §9.1). Declared up front so
