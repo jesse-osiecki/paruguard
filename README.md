@@ -100,13 +100,32 @@ paruguard-setup --uninstall   # undo the build-environment setup (prompted, reve
 sudo pacman -R paruguard-git  # or `sudo make uninstall` for a `make install`
 ```
 
+## Development
+
+Pure Bash — the Makefile "compiles" by syntax-checking. Common targets:
+
+| Target | What it does |
+|---|---|
+| `make build` | syntax-check every script (`bash -n`) |
+| `make test` | fast, non-privileged acceptance tier (`tests/run.sh`) |
+| `make lint` | `shellcheck -x` |
+| `make install` | DESTDIR/PREFIX install (for packaging / `sudo make install`; **not** the dev loop) |
+| `make uninstall` | remove a `make install` (not for pacman-managed installs) |
+| `make release VERSION=x.y.z` | cut a tagged release + update both AUR packages (see [PACKAGING.md](./PACKAGING.md)) |
+| `make help` | list targets |
+
+**Iterating:** run the working tree directly with `./bin/paruguard …` — it resolves
+`./lib` automatically, so no install is needed and it reflects your edits immediately.
+(Bare `paruguard` on `PATH` is the installed package, not your checkout.) The live test
+tier (real chroot builds/installs) runs in a disposable VM via `testrig/`, never on your
+host.
+
 ## Status
 
-Implemented and tagged **v1.0.0**. See **[PLAN.md](./PLAN.md)** for the full design
-(network-off build recipe, scriptlet-split install, the gates, the IOC check, security
-invariants I1–I7, and the test plan). `tests/run.sh` runs the fast, non-privileged
-acceptance tier; the live tier (real chroot builds/installs) runs in a disposable VM via
-`testrig/` rather than on your host.
+Implemented and tagged **v1.1.0**, published to the AUR as **`paruguard`** (stable) and
+**`paruguard-git`** (tracks `main`). See **[PLAN.md](./PLAN.md)** for the full design
+(network-off build recipe, scriptlet-split install, the gates, the IOC check, and security
+invariants I1–I7).
 
 ## Honest limits
 
