@@ -61,11 +61,26 @@ run() {
 
 # --- sudo keepalive ---------------------------------------------------------
 # A hardened install/upgrade makes several `sudo` calls spread across a long
-# build; sudo's credential cache (default 15 min) can expire between them and
-# force a mid-run re-auth. sudo_keepalive_start authenticates once up front,
-# then refreshes the timestamp in the background until the run ends — the same
-# approach makepkg/paru use. sudo_keepalive_stop tears the refresher down; it
-# is wired to an EXIT trap so it always cleans up.
+# build (and interactive gate review); sudo's credential cache (upstream
+# default 5 min) can expire between them and force a mid-run re-auth.
+# sudo_keepalive_start authenticates once up front, then refreshes the
+# timestamp in the background until the run ends — the standard sudo-loop the
+# sudo(8) man page itself documents. sudo_keepalive_stop tears it down; it is
+# also wired to an EXIT trap so it always cleans up.
+#
+# Portability/robustness notes (learned the hard way):
+#   - The refresher is RESILIENT: a single failed `sudo -n -v` must NOT kill it.
+#     While an interactive foreground sudo (e.g. `pacman -Syu`) holds the tty,
+#     a background refresh can transiently fail; the earlier version did
+#     `|| exit 0` and died permanently on the first such miss, so the ticket
+#     lapsed later. It now loops regardless and self-heals.
+#   - Interval is well under any sane timeout (default 30 s vs the 5-min sudo
+#     default; override with PARUGUARD_SUDO_INTERVAL).
+#   - stdin is left attached to the caller's terminal so sudo resolves the SAME
+#     per-tty ticket the foreground calls use (timestamp record type is per-tty
+#     by default). Only stdout/stderr are redirected.
+#   - The loop self-terminates if the parent process disappears (covers SIGKILL,
+#     where the EXIT trap can't run), so it never orphans.
 
 SUDO_KEEPALIVE_PID=""
 
@@ -73,15 +88,14 @@ sudo_keepalive_start() {
 	[[ "${DRY_RUN:-0}" == 1 ]] && return 0
 	[[ -n "$SUDO_KEEPALIVE_PID" ]] && return 0          # already running
 	command -v sudo >/dev/null 2>&1 || return 0
-	# If sudo needs no password (NOPASSWD), this is a no-op; otherwise it
-	# prompts ONCE here, before any long-running work.
+	# One interactive auth up front (a no-op if sudo is passwordless).
 	sudo -v || die "sudo authentication failed — cannot proceed (I7)"
-	# Refresh the timestamp periodically (well under the 15-min default). The
-	# non-interactive `sudo -n -v` never prompts; if the timestamp is somehow
-	# gone it simply fails quietly and the next real sudo call re-prompts.
-	( while true; do sudo -n -v >/dev/null 2>&1 || exit 0; sleep 50; done ) &
+	local ppid=$$ interval="${PARUGUARD_SUDO_INTERVAL:-30}"
+	( while kill -0 "$ppid" 2>/dev/null; do
+		sudo -n -v >/dev/null 2>&1 || true   # keep looping even if a refresh misses
+		sleep "$interval"
+	done ) &
 	SUDO_KEEPALIVE_PID=$!
-	# Don't let the background job's own lifecycle leak into job-control output.
 	disown "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
 	trap 'sudo_keepalive_stop' EXIT
 }
