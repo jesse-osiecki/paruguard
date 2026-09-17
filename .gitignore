@@ -15,3 +15,4 @@ work/
 *.swp
 .DS_Store
 /aur-pkg/
+/aur-pkg-release/

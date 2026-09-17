@@ -22,7 +22,7 @@ INSTALL_DATA    := $(INSTALL) -Dm644
 BIN_SCRIPTS  := bin/paruguard bin/paruguard-setup
 LIB_SCRIPTS  := $(wildcard lib/*.sh)
 
-.PHONY: all build check test lint install uninstall clean help
+.PHONY: all build check test lint install uninstall release clean help
 
 all: build
 
@@ -81,6 +81,11 @@ uninstall:
 	rm -rf $(DESTDIR)$(LICENSEDIR) $(DESTDIR)$(DOCDIR)
 	@echo "note: $(SYSCONFDIR)/paruguard.conf left in place (may hold local edits); remove by hand if desired."
 	@echo "note: this does NOT undo 'paruguard-setup' system state — run 'paruguard-setup --uninstall' for that."
+
+## release: cut a tagged release + refresh the AUR (usage: make release VERSION=x.y.z [NOTES="..."])
+release:
+	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z [NOTES=\"...\"]"; exit 1; }
+	scripts/release.sh "$(VERSION)" $(if $(NOTES),"$(NOTES)",)
 
 ## clean: nothing to clean (no build artifacts), present for convention
 clean:

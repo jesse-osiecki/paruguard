@@ -1,67 +1,69 @@
 # Packaging & AUR submission
 
-Maintainer notes for shipping paruguard. paruguard itself is pure Bash, so the package
+Maintainer notes for shipping paruguard. paruguard is pure Bash, so a package
 just installs files (`make install`); there is nothing to compile.
 
-## The PKGBUILD
+## Two AUR packages
 
-`PKGBUILD` in this repo is a **`-git`** package (`pkgname=paruguard-git`) that builds
-from the tip of `main`:
+| AUR package | Built from | PKGBUILD in this repo |
+|---|---|---|
+| **`paruguard`** | the latest **tagged release** tarball (verified sha256) | `PKGBUILD.release` |
+| **`paruguard-git`** | the tip of **`main`** (VCS) | `PKGBUILD` |
 
-- `pkgver()` derives the version from `git describe` (tag-based once tags exist,
-  else `0.rN.gHASH`). The `pkgver=` line is a placeholder regenerated at build.
-- `build()` → `make build` (syntax-check); `check()` → `make test` (fast tier);
-  `package()` → `make PREFIX=/usr DESTDIR="$pkgdir" install`.
-- Runtime deps (`paru`, `ks-aur-scanner`) are themselves in the AUR — fine for an
-  AUR package; an AUR helper resolves them.
+Both `build()`→`make build`, `check()`→`make test` (fast tier), and
+`package()`→`make PREFIX=/usr DESTDIR="$pkgdir" install`. Runtime deps (`paru`,
+`ks-aur-scanner`) are themselves AUR packages — fine for an AUR package; a
+helper resolves them.
 
-Regenerate `.SRCINFO` whenever the PKGBUILD changes:
+`paruguard-git` tracks `main`, so **a plain `git push` already ships code
+changes** to `-git` users on their next rebuild — no AUR action needed. The AUR
+metadata (and the stable `paruguard` package) only change when you cut a
+tagged release.
 
-```sh
-makepkg --printsrcinfo > .SRCINFO
-```
-
-Sanity-check before submitting:
-
-```sh
-makepkg --printsrcinfo >/dev/null   # parses clean
-namcap PKGBUILD                     # lint (pacman package `namcap`)
-makepkg -si                         # actually builds + installs (ideally in the VM rig)
-```
-
-## Submitting to the AUR
-
-Requires an [AUR account](https://aur.archlinux.org) with your SSH **public** key
-registered (Account → My Account → SSH Public Key). The AUR package lives in its
-own git repo, separate from the GitHub source repo.
+## Cutting a release — one command
 
 ```sh
-git clone ssh://aur@aur.archlinux.org/paruguard-git.git aur-paruguard-git
-cd aur-paruguard-git
-cp ../paruguard/PKGBUILD .
-makepkg --printsrcinfo > .SRCINFO      # REQUIRED by the AUR
-git add PKGBUILD .SRCINFO
-git commit -m "paruguard-git <version>"
-git push
+make release VERSION=1.2.0                      # auto-generated GitHub notes
+make release VERSION=1.2.0 NOTES="Highlights…"  # or your own notes
 ```
 
-The AUR only accepts commits that include a matching `.SRCINFO`. Never commit
-build artifacts (`pkg/`, `src/`, `*.pkg.tar.zst`).
+`scripts/release.sh` does the whole ceremony (run it interactively — the GitHub
+and AUR pushes use your ssh agent / AUR key and may prompt for a passphrase):
 
-## Cutting a tagged release (e.g. v1.0.0)
+1. preflight — on `main`, clean tree, `make build` + `make test` pass;
+2. bump the `-git` `pkgver` placeholder, commit, tag `vX.Y.Z`, push `main` + tag;
+3. create the GitHub Release (auto notes or `NOTES=`);
+4. download the tag tarball, compute its **sha256**, update `PKGBUILD.release`
+   (`pkgver` + checksum), commit, push;
+5. refresh `.SRCINFO` and push **both** AUR repos:
+   `aur-pkg/` → `paruguard-git`, `aur-pkg-release/` → `paruguard`.
 
-1. Ensure `main` is pushed to GitHub and fully green (VM rig: `testrig/run.sh`).
-2. Tag: `git tag -a v1.0.0 -m 'paruguard v1.0.0' && git push origin v1.0.0`.
-   `pkgver()` then reports `1.0.0.r0.g<hash>` for `paruguard-git`.
-3. *(Optional)* also publish a fixed **`paruguard`** package (not `-git`) that tracks
-   releases: copy the PKGBUILD, set `pkgname=paruguard`, `pkgver=1.0.0`, drop
-   `pkgver()`, and point `source` at the tag tarball:
+`aur-pkg/` and `aur-pkg-release/` are local clones of the two AUR repos
+(git-ignored); the script creates them on first run.
 
-   ```sh
-   source=("$pkgname-$pkgver.tar.gz::https://github.com/jesse-osiecki/paruguard/archive/refs/tags/v$pkgver.tar.gz")
-   ```
+## Prerequisites (one-time)
 
-   Then submit it to `ssh://aur@aur.archlinux.org/paruguard.git` the same way.
+- An [AUR account](https://aur.archlinux.org) with your **SSH public key**
+  registered (Account → My Account). AUR git auth is SSH, not PGP.
+- `~/.ssh/config` offering that key to `aur.archlinux.org` (and, given a large
+  agent, `IdentitiesOnly yes` so it isn't refused for `MaxAuthTries`).
+- `gh` (github-cli), authenticated.
+
+## Manual submission (first import of a new package base)
+
+The AUR auto-creates a package base on first push if the name is free:
+
+```sh
+git clone ssh://aur@aur.archlinux.org/<pkgbase>.git
+cd <pkgbase>
+cp ../paruguard/PKGBUILD .           # or PKGBUILD.release for the stable pkg
+makepkg --printsrcinfo > .SRCINFO    # REQUIRED by the AUR
+git add PKGBUILD .SRCINFO && git commit -m "<pkgbase> <version>" && git push
+```
+
+Never commit build artifacts (`pkg/`, `src/`, `*.pkg.tar.zst`). Sanity-check a
+PKGBUILD with `namcap PKGBUILD` and a real `makepkg -si` (ideally in the VM
+rig) before pushing.
 
 ## After publishing
 
