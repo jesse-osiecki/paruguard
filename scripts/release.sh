@@ -70,7 +70,9 @@ refresh_aur() {
 # --- 1. bump -git placeholder, commit, tag ----------------------------------
 log "setting -git PKGBUILD placeholder to $version"
 sed -i "s/^pkgver=.*/pkgver=$version/" PKGBUILD
-[[ -n "$(git status --porcelain PKGBUILD)" ]] && { git add PKGBUILD; git commit -q -m "release $tag"; }
+# keep the README "Status" line in sync with the release
+sed -i -E "s/(Implemented and tagged \*\*)v[0-9]+\.[0-9]+\.[0-9]+(\*\*)/\1$tag\2/" README.md
+[[ -n "$(git status --porcelain PKGBUILD README.md)" ]] && { git add PKGBUILD README.md; git commit -q -m "release $tag"; }
 log "tagging $tag and pushing to GitHub"
 git tag -a "$tag" -m "paruguard $tag"
 git push origin main

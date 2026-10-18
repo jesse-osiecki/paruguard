@@ -122,7 +122,7 @@ host.
 
 ## Status
 
-Implemented and tagged **v1.1.0**, published to the AUR as **`paruguard`** (stable) and
+Implemented and tagged **v1.1.1**, published to the AUR as **`paruguard`** (stable) and
 **`paruguard-git`** (tracks `main`). See **[PLAN.md](./PLAN.md)** for the full design
 (network-off build recipe, scriptlet-split install, the gates, the IOC check, and security
 invariants I1–I7).
