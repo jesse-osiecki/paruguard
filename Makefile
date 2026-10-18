@@ -85,7 +85,9 @@ uninstall:
 ## release: cut a tagged release + refresh the AUR (usage: make release VERSION=x.y.z [NOTES="..."])
 release:
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z [NOTES=\"...\"]"; exit 1; }
-	scripts/release.sh "$(VERSION)" $(if $(NOTES),"$(NOTES)",)
+	@# NOTES is passed via the environment (make exports command-line variables),
+	@# so quotes, <angle brackets>, $ etc. in the notes survive intact.
+	scripts/release.sh "$(VERSION)"
 
 ## clean: nothing to clean (no build artifacts), present for convention
 clean:

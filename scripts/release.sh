@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # scripts/release.sh VERSION ["release notes"] — cut a tagged paruguard release
-# and update BOTH AUR packages in one command.
+# and update BOTH AUR packages in one command. Notes may also be given via the
+# NOTES environment variable (how `make release NOTES=...` passes them, so
+# arbitrary text survives make/sh quoting).
 #
 #   1. preflight: on main, clean tree, `make build` + `make test` pass
 #   2. bump the -git PKGBUILD placeholder to VERSION, commit, tag vVERSION
