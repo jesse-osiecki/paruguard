@@ -4,7 +4,7 @@
 # tests/run.sh — acceptance tests for PLAN.md §11.
 #
 # Two tiers:
-#   fast (default) — tests 1, 2, 3, 8, 10. Pure functions / read-only checks,
+#   fast (default) — tests 1, 2, 3, 8, 10, 11, 12. Pure functions / read-only checks,
 #                     no sudo, no chroot builds, no package installs. Safe to
 #                     run anytime, including on the machine paruguard manages.
 #   live (--live)   — tests 4, 5, 6, 7, 9. Exercise the REAL chroot build,
@@ -207,6 +207,53 @@ test_11_scan_override() {
 	report "11 scan-override" 0
 }
 
+# --- test 12: existing clone is fast-forwarded to upstream (§6.1) ----------
+# `paru -G` only fetches an existing clone; gate_sync_clone must move HEAD to
+# upstream, and must fail closed on a dirty tree or a rewritten upstream.
+test_12_clone_sync() {
+	local tmp upstream clone rc
+	tmp=$(mktemp -d)
+	trap 'rm -rf "$tmp"' RETURN
+	upstream="$tmp/upstream"; clone="$tmp/clone"
+	local -a g=(git -c user.email=t@t -c user.name=t -c init.defaultBranch=master)
+
+	mkdir -p "$upstream"
+	( cd "$upstream" && "${g[@]}" init -q && printf 'pkgver=1\n' > PKGBUILD \
+		&& "${g[@]}" add -A && "${g[@]}" commit -q -m v1 ) || { report "12 clone-sync" 1 "fixture setup"; return; }
+	"${g[@]}" clone -q "$upstream" "$clone" 2>/dev/null
+	( cd "$upstream" && printf 'pkgver=2\n' > PKGBUILD && "${g[@]}" commit -q -am v2 )
+	: > "$clone/x-package.log"   # untracked build leftover must be tolerated
+
+	# (a) stale clone + new upstream commit => HEAD advances to upstream.
+	rc=0
+	( gate_sync_clone test-pkg "$clone" ) >/tmp/paruguard-test-12a.out 2>&1 || rc=$?
+	if (( rc != 0 )) || [[ "$(git -C "$clone" rev-parse HEAD)" != "$(git -C "$upstream" rev-parse HEAD)" ]] \
+		|| ! grep -q 'pkgver=2' "$clone/PKGBUILD"; then
+		report "12 clone-sync" 1 "clone was not fast-forwarded to upstream (rc=$rc)"
+		return
+	fi
+
+	# (b) locally modified tracked file => fail closed.
+	printf 'pkgver=evil\n' > "$clone/PKGBUILD"
+	rc=0
+	( gate_sync_clone test-pkg "$clone" ) >/tmp/paruguard-test-12b.out 2>&1 || rc=$?
+	if (( rc == 0 )); then
+		report "12 clone-sync" 1 "did not fail closed on locally modified PKGBUILD"
+		return
+	fi
+	git -C "$clone" checkout -q -- PKGBUILD
+
+	# (c) upstream history rewritten (non-fast-forward) => fail closed.
+	( cd "$upstream" && "${g[@]}" commit -q --amend -m v2-rewritten )
+	rc=0
+	( gate_sync_clone test-pkg "$clone" ) >/tmp/paruguard-test-12c.out 2>&1 || rc=$?
+	if (( rc == 0 )); then
+		report "12 clone-sync" 1 "did not fail closed on non-fast-forward upstream"
+		return
+	fi
+	report "12 clone-sync" 0
+}
+
 # --- live tests (§11 tests 4,5,6,7,9) -------------------------------------
 
 live_setup_clonedir() {
@@ -304,6 +351,7 @@ test_3_maintainer_hardstop
 test_8_passthrough
 test_10_fail_closed
 test_11_scan_override
+test_12_clone_sync
 
 if (( LIVE )); then
 	echo

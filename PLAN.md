@@ -267,6 +267,19 @@ For each AUR target `$pkg`, into a paruguard-owned work root
 `paru -G` resolves pkgname→pkgbase and clones the AUR git repo (full history — needed for
 the diff gate). Do **not** run `makepkg` yet.
 
+On an **existing** clone `paru -G` only `git fetch`es — it never moves the checked-out
+HEAD — so paruguard then fast-forwards the clone itself (`gate_sync_clone`):
+
+```bash
+git -C "$clonedir" diff --quiet HEAD --      # tracked files modified ⇒ die (I7)
+git -C "$clonedir" fetch origin               # failure ⇒ die (I7)
+git -C "$clonedir" merge --ff-only '@{u}'     # non-fast-forward (history rewritten) ⇒ die (I7)
+```
+
+Without this the gate would review, build and "reinstall" the first-ever fetched version on
+every subsequent run. A non-fast-forward upstream is treated as a security signal, not
+auto-resolved: the operator inspects and removes the clone to re-clone from scratch.
+
 ### 6.2 Gate (`lib/gate.sh`) — fail closed (I5, I7)
 State dir: `${XDG_STATE_HOME:-~/.local/state}/paruguard/approved/<pkgbase>/` holding the last
 **approved git commit** and **maintainer**.

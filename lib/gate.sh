@@ -36,8 +36,37 @@ gate_resolve_info() {
 		|| die "could not resolve pkgbase for '$pkg' via AUR RPC"
 }
 
+# gate_sync_clone PKGBASE CLONEDIR — bring an existing clone's checked-out tree
+# up to date with the AUR remote. `paru -G` only `git fetch`es an already-cloned
+# pkgbase; it never moves HEAD, so without this step the gate would review and
+# build whatever version was checked out on the first run, forever (the
+# "up to date -- reinstalling" symptom). Fails closed (I7) if:
+#   - tracked files in the clone are modified (paruguard never edits the clone,
+#     so this is unexpected state and the gate must not review a mix);
+#   - the fetch fails;
+#   - upstream is not a fast-forward of HEAD (AUR history rewritten) — the
+#     operator must inspect and remove the clone to re-clone from scratch.
+# Untracked build leftovers (makechrootpkg's *-package.log) are left alone.
+gate_sync_clone() {
+	local pkgbase="$1" clonedir="$2" before after
+	git -C "$clonedir" diff --quiet HEAD -- \
+		|| die "$pkgbase: tracked files in $clonedir are locally modified; refusing to gate a mixed tree (I7). Inspect, then remove the directory to re-clone."
+	git -C "$clonedir" fetch -q origin \
+		|| die "$pkgbase: 'git fetch' of $clonedir failed (I7)"
+	before=$(git -C "$clonedir" rev-parse HEAD)
+	git -C "$clonedir" merge -q --ff-only '@{u}' >&2 \
+		|| die "$pkgbase: upstream AUR history is not a fast-forward of the local clone (history rewritten?). Inspect $clonedir, then remove it to re-clone (I7)."
+	after=$(git -C "$clonedir" rev-parse HEAD)
+	if [[ "$before" != "$after" ]]; then
+		log "$pkgbase: clone updated ${before:0:7} -> ${after:0:7}"
+	else
+		log "$pkgbase: clone already at upstream ${after:0:7}"
+	fi
+}
+
 # gate_fetch PKGBASE — clones/updates the AUR git repo via `paru -G` into the
-# paruguard work root. Echoes the clone directory on stdout.
+# paruguard work root, then fast-forwards an existing clone to upstream
+# (gate_sync_clone). Echoes the clone directory on stdout.
 gate_fetch() {
 	local pkgbase="$1" workroot clonedir
 	workroot=$(paruguard_work_root)
@@ -48,6 +77,7 @@ gate_fetch() {
 	clonedir="$workroot/$pkgbase"
 	[[ -d "$clonedir/.git" ]] \
 		|| die "$pkgbase: expected git clone at $clonedir not found after fetch"
+	gate_sync_clone "$pkgbase" "$clonedir"
 	printf '%s\n' "$clonedir"
 }
 
