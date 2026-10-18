@@ -111,7 +111,7 @@ Pure Bash — the Makefile "compiles" by syntax-checking. Common targets:
 | `make lint` | `shellcheck -x` |
 | `make install` | DESTDIR/PREFIX install (for packaging / `sudo make install`; **not** the dev loop) |
 | `make uninstall` | remove a `make install` (not for pacman-managed installs) |
-| `make release VERSION=x.y.z` | cut a tagged release + update both AUR packages (see [PACKAGING.md](./PACKAGING.md)) |
+| `make release [VERSION=x.y.z\|minor\|major]` | cut a tagged release + update both AUR packages; default is a patch bump (see [PACKAGING.md](./PACKAGING.md)) |
 | `make help` | list targets |
 
 **Iterating:** run the working tree directly with `./bin/paruguard …` — it resolves

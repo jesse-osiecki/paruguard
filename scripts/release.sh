@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# scripts/release.sh VERSION ["release notes"] — cut a tagged paruguard release
-# and update BOTH AUR packages in one command. Notes may also be given via the
-# NOTES environment variable (how `make release NOTES=...` passes them, so
-# arbitrary text survives make/sh quoting).
+# scripts/release.sh [VERSION] ["release notes"] — cut a tagged paruguard
+# release and update BOTH AUR packages in one command.
+#
+# VERSION is X.Y.Z, or a bump keyword: patch (default when omitted/empty),
+# minor, major — computed from the latest v* tag; a derived version is shown
+# and confirmed before anything is tagged or pushed. Notes may also be given
+# via the NOTES environment variable (how `make release NOTES=...` passes them,
+# so arbitrary text survives make/sh quoting).
 #
 #   1. preflight: on main, clean tree, `make build` + `make test` pass
 #   2. bump the -git PKGBUILD placeholder to VERSION, commit, tag vVERSION
@@ -35,11 +39,33 @@ AUR_REL_DIR="$REPO_ROOT/aur-pkg-release"   # paruguard (tagged release)
 AUR_GIT_REMOTE="ssh://aur@aur.archlinux.org/paruguard-git.git"
 AUR_REL_REMOTE="ssh://aur@aur.archlinux.org/paruguard.git"
 
-[[ $# -ge 1 ]] || die "usage: scripts/release.sh VERSION [\"release notes\"]  (e.g. 1.2.0)"
-version="${1#v}"; shift
-notes="${1:-}"
+spec="${1:-patch}"; [[ $# -ge 1 ]] && shift
+notes="${1:-${NOTES:-}}"
+
+# --- resolve VERSION: explicit X.Y.Z, or patch|minor|major from the latest tag
+derived=0
+case "${spec#v}" in
+	patch|minor|major)
+		last=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -1)
+		[[ "$last" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] \
+			|| die "cannot derive a version: no vX.Y.Z tag found (pass VERSION=X.Y.Z)"
+		maj=${BASH_REMATCH[1]}; min=${BASH_REMATCH[2]}; pat=${BASH_REMATCH[3]}
+		case "$spec" in
+			patch) pat=$((pat + 1)) ;;
+			minor) min=$((min + 1)); pat=0 ;;
+			major) maj=$((maj + 1)); min=0; pat=0 ;;
+		esac
+		version="$maj.$min.$pat"; derived=1
+		log "$spec bump from $last -> v$version"
+		;;
+	*) version="${spec#v}" ;;
+esac
 tag="v$version"
-[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "VERSION must be X.Y.Z"
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "VERSION must be X.Y.Z or patch|minor|major (got '$spec')"
+if (( derived )); then
+	read -r -p "release $tag? [y/N] " ans </dev/tty || ans=n
+	[[ "$ans" =~ ^[Yy]$ ]] || die "aborted — pass VERSION=X.Y.Z (or minor/major) to pick a different version"
+fi
 
 # --- preflight --------------------------------------------------------------
 command -v gh >/dev/null 2>&1 || die "gh (github-cli) is required"

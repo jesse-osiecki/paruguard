@@ -23,9 +23,17 @@ tagged release.
 ## Cutting a release — one command
 
 ```sh
-make release VERSION=1.2.0                      # auto-generated GitHub notes
-make release VERSION=1.2.0 NOTES="Highlights…"  # or your own notes
+make release                                    # patch bump of the latest tag (asks to confirm)
+make release VERSION=minor                      # or: major — bump computed from the latest tag
+make release VERSION=1.2.0                      # or an explicit version
+make release NOTES="Highlights…"                # your own notes (any text; passed via env);
+                                                # omitted => GitHub auto-generates them
 ```
+
+Pick the bump by [semver](https://semver.org): bug fix → patch (`1.1.0`→`1.1.1`),
+new flag/behaviour → minor, security-invariant or CLI break → major. After the
+release, update your own machine like any other AUR package:
+`paruguard -S paruguard-git` (or `paruguard -S paruguard` for the stable one).
 
 `scripts/release.sh` does the whole ceremony (run it interactively — the GitHub
 and AUR pushes use your ssh agent / AUR key and may prompt for a passphrase):

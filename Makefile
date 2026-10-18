@@ -82,9 +82,9 @@ uninstall:
 	@echo "note: $(SYSCONFDIR)/paruguard.conf left in place (may hold local edits); remove by hand if desired."
 	@echo "note: this does NOT undo 'paruguard-setup' system state — run 'paruguard-setup --uninstall' for that."
 
-## release: cut a tagged release + refresh the AUR (usage: make release VERSION=x.y.z [NOTES="..."])
+## release: cut a tagged release + refresh the AUR (usage: make release [VERSION=x.y.z|minor|major] [NOTES="..."]; default: patch bump)
 release:
-	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z [NOTES=\"...\"]"; exit 1; }
+	@# VERSION defaults to a patch bump of the latest tag (confirmed interactively).
 	@# NOTES is passed via the environment (make exports command-line variables),
 	@# so quotes, <angle brackets>, $ etc. in the notes survive intact.
 	scripts/release.sh "$(VERSION)"
