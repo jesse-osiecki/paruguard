@@ -343,6 +343,16 @@ persistent host source pool `SRCDEST=/var/lib/paruguard/srcdest`, and `PKGDEST=/
    `-debug` package) and refresh **only** the `[aur]` sync db (copy the local repo db into
    pacman's sync dir — NOT `pacman -Sy`, which would also refresh the official mirrors and
    leave the db ahead of the installed system, a partial-upgrade footgun).
+5. **Cleanup (after a successful §6.4 install only; `build_cleanup`)** — disk use stays
+   bounded: remove the chroot working copy (`KEEP_BUILD_COPY=1` / `--keep-build-copy`
+   retains it); delete superseded files for each built pkgname (and its `-debug`) from
+   `PKGDEST`, keeping the current one plus `KEEP_OLD_PKGS` (default 1) older versions for
+   rollback — `repo-add` has already dropped their db entries; delete pool sources that no
+   clone's `.SRCINFO` under the work root references (filenames derived with makepkg's
+   `get_filename` rule; VCS checkout directories untouched; nothing pruned if no `.SRCINFO`
+   exists); `git clean` the clone's untracked build logs. A failed build is always left in
+   place for inspection — the next run re-syncs the copy from the pristine root regardless
+   (a prior build, possibly malicious, must never seed the next one).
 
 > **Why host-side verify, not in-chroot?** An earlier design ran `--verifysource` inside the
 > chroot to keep the PKGBUILD parse off the host. It bought nothing — `makechrootpkg`'s own
@@ -482,6 +492,8 @@ annotated default. Keys:
 | `IOC` | `1` | Run the IOC self-check. |
 | `ALLOW_CHECK_NET` | `0` | Allow networked `check()` re-run (weakens I2 for tests only). |
 | `KNOWN_BAD_LIST` | `/usr/share/paruguard/known-bad-packages.txt` | IOC package list path. |
+| `KEEP_BUILD_COPY` | `0` | Keep the chroot working copy after a successful install (§6.3 step 5). |
+| `KEEP_OLD_PKGS` | `1` | Older versions per package retained in `/var/lib/repo/aur` for rollback. |
 
 ### 9.2 Runtime assertions
 On start, `paruguard` verifies: `command paru`, `pacman`, `makechrootpkg`, `arch-nspawn`,

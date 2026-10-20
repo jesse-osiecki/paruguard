@@ -72,6 +72,9 @@ paruguard-specific flags (stripped before delegating passthrough ops):
                                 post_upgrade|pre_remove|post_remove)
   --no-flatpak                 skip `flatpak update` on upgrades
   --no-ioc                     skip the IOC self-check
+  --keep-build-copy            keep the chroot working copy after a successful
+                                build/install (default: removed; failed builds
+                                are always kept for inspection)
   --sandbox=chroot|gvisor      build backend (default: chroot; gvisor is Phase 2)
   --dry-run                    print the plan without executing
   -h, --help                   this help
@@ -143,6 +146,7 @@ CLI_ALLOW_BUILD_NET=0
 CLI_SANDBOX=""
 CLI_NO_FLATPAK=0
 CLI_NO_IOC=0
+CLI_KEEP_BUILD_COPY=0
 
 while (( $# > 0 )); do
 	case "$1" in
@@ -155,6 +159,7 @@ while (( $# > 0 )); do
 		--replay-hook=*) REPLAY_HOOK="${1#*=}"; shift ;;
 		--no-flatpak) CLI_NO_FLATPAK=1; shift ;;
 		--no-ioc) CLI_NO_IOC=1; shift ;;
+		--keep-build-copy) CLI_KEEP_BUILD_COPY=1; shift ;;
 		--sandbox=*) CLI_SANDBOX="${1#*=}"; shift ;;
 		--dry-run) DRY_RUN=1; shift ;;
 		-h|--help) usage; exit 0 ;;
@@ -172,6 +177,7 @@ export DRY_RUN
 [[ -n "$CLI_SANDBOX" ]] && SANDBOX="$CLI_SANDBOX"
 (( CLI_NO_FLATPAK )) && FLATPAK=0
 (( CLI_NO_IOC )) && IOC=0
+(( CLI_KEEP_BUILD_COPY )) && KEEP_BUILD_COPY=1
 
 if [[ -n "$REPLAY_HOOK" && ! "$REPLAY_HOOK" =~ ^(pre_install|post_install|pre_upgrade|post_upgrade|pre_remove|post_remove)$ ]]; then
 	die "invalid --replay-hook function: $REPLAY_HOOK"
@@ -222,6 +228,7 @@ process_one_target() {
 	install_run
 
 	gate_snapshot "$pkgbase" "$clonedir" "$maintainer"
+	build_cleanup "$pkgbase" "$clonedir"
 	ok "$pkgbase: complete"
 }
 

@@ -162,7 +162,10 @@ build_sync_copy() {
 		run sudo rm -rf "$copy"
 	fi
 	log "$copyname: syncing fresh chroot copy from pristine root"
-	if findmnt -no FSTYPE "$AUR_CHROOT_ROOT" 2>/dev/null | grep -qx btrfs; then
+	# -T: answer for the filesystem CONTAINING the path. Without it findmnt only
+	# matches an actual mount point, so a chroot root that is merely a directory
+	# on a btrfs volume silently fell back to the slow full copy.
+	if findmnt -no FSTYPE -T "$AUR_CHROOT_ROOT" 2>/dev/null | grep -qx btrfs; then
 		run sudo btrfs subvolume snapshot "$root" "$copy" >/dev/null
 	else
 		run sudo cp -a --reflink=auto "$root" "$copy"
@@ -324,4 +327,135 @@ build_target() {
 	local -a pkgnames
 	mapfile -t pkgnames < <(build_pkgnames "$clonedir")
 	build_repo_add "${pkgnames[@]}"
+}
+
+# --- post-install cleanup (PLAN.md §6.3 step 5) -----------------------------
+# Everything a build leaves behind is bounded so disk use does not grow without
+# limit: the chroot working copy (~1 GB+ each), superseded package files in the
+# local [aur] repo, sources in the pool that no current PKGBUILD references, and
+# untracked build logs in the clone. Only run after a SUCCESSFUL install — on a
+# failure everything is left in place for inspection (the next run for that
+# package re-syncs the copy anyway).
+
+# build_old_repo_files NAME KEEP — pure: lists package files in the local repo
+# whose pkgname is exactly NAME, newest-first by mtime, SKIPPING the first
+# 1+KEEP (the current build plus KEEP older versions). Echoes files to delete.
+build_old_repo_files() {
+	local name="$1" keep="$2" f base stem pkgname
+	local -a matches=()
+	for f in "$AUR_REPO_DIR"/*.pkg.tar.zst; do
+		[[ -e "$f" ]] || continue
+		base=${f##*/}
+		stem=${base%.pkg.tar.zst}
+		pkgname=${stem%-*}; pkgname=${pkgname%-*}; pkgname=${pkgname%-*}
+		[[ "$pkgname" == "$name" ]] && matches+=("$f")
+	done
+	(( ${#matches[@]} > 0 )) || return 0
+	# newest first; `ls -t` is the portable mtime sort for a fixed file list
+	ls -1t -- "${matches[@]}" | tail -n +"$((keep + 2))"
+}
+
+# build_prune_repo_files PKGNAME... — delete superseded versions of each built
+# package (and its -debug companion) from the local repo, keeping the current
+# file plus KEEP_OLD_PKGS older ones for rollback. repo-add already dropped the
+# old entries from aur.db (one entry per pkgname), so the files are orphans.
+build_prune_repo_files() {
+	local keep="${KEEP_OLD_PKGS:-1}" n f
+	[[ "$keep" =~ ^[0-9]+$ ]] || die "KEEP_OLD_PKGS must be a non-negative integer (got '$keep')"
+	local -a victims=()
+	for n in "$@"; do
+		while IFS= read -r f; do [[ -n "$f" ]] && victims+=("$f"); done \
+			< <(build_old_repo_files "$n" "$keep"; build_old_repo_files "$n-debug" "$keep")
+	done
+	(( ${#victims[@]} > 0 )) || return 0
+	log "pruning superseded package file(s) from $AUR_REPO_DIR (keeping current + $keep): ${victims[*]##*/}"
+	run sudo rm -f -- "${victims[@]}"
+}
+
+# build_source_filenames CLONEDIR — pure: the SRCDEST filenames makepkg uses
+# for every source/source_<arch> entry in .SRCINFO, mirroring makepkg's
+# get_filename(): "name::url" => name; VCS urls => basename minus fragment
+# and .git; otherwise the url's basename. Local (non-URL) sources live in
+# the clone, not SRCDEST, and are skipped.
+build_source_filenames() {
+	local clonedir="$1" entry name url proto
+	[[ -r "$clonedir/.SRCINFO" ]] || return 0
+	grep -E '^[[:space:]]*source(_[A-Za-z0-9_]+)?[[:space:]]*=' "$clonedir/.SRCINFO" \
+		| sed -E 's/^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=[[:space:]]*//' \
+		| while IFS= read -r entry; do
+			[[ -n "$entry" ]] || continue
+			if [[ "$entry" == *::* ]]; then
+				name=${entry%%::*}; url=${entry#*::}
+			else
+				name=""; url=$entry
+			fi
+			[[ "$url" == *://* ]] || continue        # local file in the clone
+			proto=${url%%://*}; proto=${proto%%+*}
+			if [[ -z "$name" ]]; then
+				case "$proto" in
+					git|hg|svn|bzr|fossil)
+						name=${url%%#*}; name=${name%/}; name=${name##*/}
+						[[ "$proto" == git ]] && name=${name%%.git*}
+						;;
+					*) name=${url##*/} ;;
+				esac
+			fi
+			[[ -n "$name" ]] && printf '%s\n' "$name"
+		done | sort -u
+}
+
+# build_unreferenced_srcpool_files — pure: regular files in the source pool
+# not referenced by ANY clone's .SRCINFO under the work root. Prints nothing
+# (prunes nothing) if no .SRCINFO exists at all, so an empty/moved work root
+# can never wipe the pool. VCS checkouts are directories and are left alone.
+build_unreferenced_srcpool_files() {
+	local workroot srcinfo f
+	workroot=$(paruguard_work_root)
+	local -A referenced=()
+	local found=0
+	for srcinfo in "$workroot"/*/.SRCINFO; do
+		[[ -e "$srcinfo" ]] || continue
+		found=1
+		while IFS= read -r f; do referenced["$f"]=1; done \
+			< <(build_source_filenames "${srcinfo%/.SRCINFO}")
+	done
+	(( found )) || return 0
+	for f in "$AUR_SRCPOOL"/*; do
+		[[ -f "$f" ]] || continue
+		[[ -n "${referenced[${f##*/}]:-}" ]] || printf '%s\n' "$f"
+	done
+}
+
+# build_prune_srcpool — delete pool sources no current PKGBUILD references
+# (superseded upstream tarballs). The pool is user-owned; no sudo needed.
+build_prune_srcpool() {
+	local -a victims=()
+	local f
+	while IFS= read -r f; do [[ -n "$f" ]] && victims+=("$f"); done \
+		< <(build_unreferenced_srcpool_files)
+	(( ${#victims[@]} > 0 )) || return 0
+	log "pruning unreferenced source(s) from $AUR_SRCPOOL: ${victims[*]##*/}"
+	run rm -f -- "${victims[@]}"
+}
+
+# build_cleanup PKGBASE CLONEDIR — run after a successful install (§6.3 step 5).
+build_cleanup() {
+	local pkgbase="$1" clonedir="$2"
+	local copyname="paruguard-$pkgbase" copy="$AUR_CHROOT_ROOT/paruguard-$pkgbase"
+
+	if [[ "${KEEP_BUILD_COPY:-0}" == 1 ]]; then
+		log "$copyname: keeping chroot working copy for inspection (--keep-build-copy)"
+	elif [[ -d "$copy" ]]; then
+		log "$copyname: removing chroot working copy (build succeeded; --keep-build-copy retains it)"
+		run sudo rm -rf -- "$copy" "$copy.lock"
+	fi
+
+	local -a pkgnames
+	mapfile -t pkgnames < <(build_pkgnames "$clonedir")
+	build_prune_repo_files "${pkgnames[@]}"
+	build_prune_srcpool
+
+	# makechrootpkg copies *-package.log etc. back into the clone each build;
+	# tracked files were verified clean at fetch, so this only drops leftovers.
+	run git -C "$clonedir" clean -fdxq || true
 }

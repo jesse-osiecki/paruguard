@@ -7,7 +7,7 @@ _paruguard() {
 	prev="${COMP_WORDS[COMP_CWORD - 1]}"
 
 	local ops="-S -Syu -Su -Sua -Sy -Q -Qua -R -Ss -Si -G -F -Sc doctor"
-	local flags="--fail-on --allow-maintainer-change --replay-hook --no-flatpak --no-ioc --sandbox= --dry-run --help --version"
+	local flags="--fail-on --allow-maintainer-change --replay-hook --no-flatpak --no-ioc --keep-build-copy --sandbox= --dry-run --help --version"
 
 	case "$prev" in
 		--fail-on)

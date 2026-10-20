@@ -4,7 +4,7 @@
 # tests/run.sh — acceptance tests for PLAN.md §11.
 #
 # Two tiers:
-#   fast (default) — tests 1, 2, 3, 8, 10, 11, 12. Pure functions / read-only checks,
+#   fast (default) — tests 1, 2, 3, 8, 10-13. Pure functions / read-only checks,
 #                     no sudo, no chroot builds, no package installs. Safe to
 #                     run anytime, including on the machine paruguard manages.
 #   live (--live)   — tests 4, 5, 6, 7, 9. Exercise the REAL chroot build,
@@ -254,6 +254,66 @@ test_12_clone_sync() {
 	report "12 clone-sync" 0
 }
 
+# --- test 13: post-install cleanup helpers are pure + bounded (§6.3 step 5) --
+test_13_cleanup_prune() {
+	# shellcheck source=lib/build.sh
+	source "$REPO_ROOT/lib/build.sh"
+	local tmp rc=0 got want
+	tmp=$(mktemp -d)
+	trap 'rm -rf "$tmp"' RETURN
+	local repo="$tmp/repo" pool="$tmp/pool" work="$XDG_STATE_HOME/paruguard/work"
+	mkdir -p "$repo" "$pool" "$work/foo" "$work/bar"
+
+	# repo: foo has 4 versions (+ a -debug and a prefix-collision foo-bar), bar 1
+	local i
+	for i in 1 2 3 4; do
+		: > "$repo/foo-$i.0-1-x86_64.pkg.tar.zst"; touch -d "2026-01-0$i" "$repo/foo-$i.0-1-x86_64.pkg.tar.zst"
+		: > "$repo/foo-debug-$i.0-1-x86_64.pkg.tar.zst"; touch -d "2026-01-0$i" "$repo/foo-debug-$i.0-1-x86_64.pkg.tar.zst"
+	done
+	: > "$repo/foo-bar-9.0-1-x86_64.pkg.tar.zst"
+	: > "$repo/bar-1.0-1-any.pkg.tar.zst"
+
+	# (a) keep=1 => current (4.0) + one older (3.0) survive; 1.0, 2.0 go.
+	got=$(AUR_REPO_DIR="$repo" build_old_repo_files foo 1 | sed 's#.*/##' | sort | tr '\n' ' ')
+	want="foo-1.0-1-x86_64.pkg.tar.zst foo-2.0-1-x86_64.pkg.tar.zst "
+	[[ "$got" == "$want" ]] || { rc=1; echo "    (a) got=[$got] want=[$want]"; }
+	# (b) keep=0 => only the current survives; the -debug companion is separate.
+	got=$(AUR_REPO_DIR="$repo" build_old_repo_files foo-debug 0 | wc -l)
+	[[ "$got" == 3 ]] || { rc=1; echo "    (b) foo-debug keep=0 pruned $got, want 3"; }
+	# (c) a single version is never pruned, even at keep=0; foo-bar untouched.
+	got=$(AUR_REPO_DIR="$repo" build_old_repo_files bar 0 | wc -l)
+	[[ "$got" == 0 ]] || { rc=1; echo "    (c) bar pruned $got, want 0"; }
+	got=$(AUR_REPO_DIR="$repo" build_old_repo_files foo 0 | grep -c 'foo-bar' || true)
+	[[ "$got" == 0 ]] || { rc=1; echo "    (c) foo-bar matched as foo"; }
+
+	# source filenames: name::url, plain url, git+url with fragment, local file
+	cat > "$work/foo/.SRCINFO" <<'SRC'
+pkgbase = foo
+	source = foo-2.0.tar.gz::https://example.com/dl?v=2.0
+	source = https://example.com/foo-extra.zip
+	source = git+https://example.com/foo.git#tag=v2
+	source = foo.desktop
+	source_x86_64 = foo-x86_64.bin::https://example.com/foo-x86_64
+SRC
+	printf 'pkgbase = bar\n\tsource = https://example.com/bar-1.0.tar.gz\n' > "$work/bar/.SRCINFO"
+	got=$(build_source_filenames "$work/foo" | tr '\n' ' ')
+	want="foo foo-2.0.tar.gz foo-extra.zip foo-x86_64.bin "
+	[[ "$got" == "$want" ]] || { rc=1; echo "    (d) got=[$got] want=[$want]"; }
+
+	# (e) pool pruning: only unreferenced regular files; VCS dirs untouched.
+	: > "$pool/foo-2.0.tar.gz"; : > "$pool/foo-1.0.tar.gz"; : > "$pool/bar-1.0.tar.gz"
+	: > "$pool/stale-0.1.tar.gz"; mkdir -p "$pool/foo"   # git checkout dir
+	got=$(AUR_SRCPOOL="$pool" build_unreferenced_srcpool_files | sed 's#.*/##' | sort | tr '\n' ' ')
+	want="foo-1.0.tar.gz stale-0.1.tar.gz "
+	[[ "$got" == "$want" ]] || { rc=1; echo "    (e) got=[$got] want=[$want]"; }
+	# (f) no .SRCINFO anywhere => prune nothing (never wipe the pool).
+	rm -f "$work/foo/.SRCINFO" "$work/bar/.SRCINFO"
+	got=$(AUR_SRCPOOL="$pool" build_unreferenced_srcpool_files | wc -l)
+	[[ "$got" == 0 ]] || { rc=1; echo "    (f) pruned $got with no .SRCINFO, want 0"; }
+
+	report "13 cleanup-prune" "$rc"
+}
+
 # --- live tests (§11 tests 4,5,6,7,9) -------------------------------------
 
 live_setup_clonedir() {
@@ -352,6 +412,7 @@ test_8_passthrough
 test_10_fail_closed
 test_11_scan_override
 test_12_clone_sync
+test_13_cleanup_prune
 
 if (( LIVE )); then
 	echo

@@ -91,7 +91,12 @@ you've authenticated.
 
 `paruguard --help` lists the full flag set: `--fail-on`, `--allow-maintainer-change`,
 `--allow-scan-findings`, `--allow-build-net`, `--replay-hook`, `--no-flatpak`, `--no-ioc`,
-`--sandbox`, `--dry-run`.
+`--keep-build-copy`, `--sandbox`, `--dry-run`.
+
+Disk use is bounded: after a successful install paruguard removes the package's chroot
+working copy, prunes superseded package files from the local `[aur]` repo (keeping
+`KEEP_OLD_PKGS`, default 1, older versions for rollback), and prunes pool sources no current
+PKGBUILD references. A failed build is always left in place for inspection.
 
 ## Uninstall
 

@@ -120,6 +120,8 @@ FLATPAK=1
 IOC=1
 ALLOW_CHECK_NET=0
 KNOWN_BAD_LIST=/usr/share/paruguard/known-bad-packages.txt
+KEEP_BUILD_COPY=0
+KEEP_OLD_PKGS=1
 
 # load_config — sources system config then user override, each only if
 # present. Values are plain KEY=value assignments (see etc/paruguard.conf).

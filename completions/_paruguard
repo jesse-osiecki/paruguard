@@ -25,6 +25,7 @@ _paruguard() {
 		'--replay-hook[advisory sandbox replay of a scriptlet function]::fn:(pre_install post_install pre_upgrade post_upgrade pre_remove post_remove)'
 		'--no-flatpak[skip flatpak update on upgrades]'
 		'--no-ioc[skip the IOC self-check]'
+		'--keep-build-copy[keep the chroot working copy after a successful build]'
 		'--sandbox[build backend]:backend:(chroot gvisor)'
 		'--dry-run[print the plan without executing]'
 		'--help[show help]'
